@@ -1,0 +1,66 @@
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  LANDLORD
+}
+
+model User {
+  id         Int        @id @default(autoincrement())
+  email      String     @unique
+  password   String
+  name       String?
+  phone      String?
+  telegramId String? 
+  role       Role       @default(USER)
+  properties Property[] // Жилье, которое сдает этот юзер
+  bookings   Booking[]  // Бронирования этого юзера
+  favorites  Favorite[]
+  createdAt  DateTime   @default(now())
+}
+
+model Property {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String
+  price       Float
+  type        String    // квартира, дом, комната
+  city        String
+  images      String[]  // Массив ссылок на фото
+  ownerId     Int
+  owner       User      @relation(fields: [ownerId], references: [id])
+  bookings    Booking[]
+  favorites   Favorite[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Booking {
+  id         Int      @id @default(autoincrement())
+  startDate  DateTime
+  endDate    DateTime
+  totalPrice Float    // Вычисляется как (endDate - startDate) * property.price
+  userId     Int
+  propertyId Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model Favorite {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  propertyId Int
+  user       User     @relation(fields: [userId], references: [id])
+  property   Property @relation(fields: [propertyId], references: [id])
+  @@unique([userId, propertyId]) // Чтобы нельзя было лайкнуть дважды
+}
