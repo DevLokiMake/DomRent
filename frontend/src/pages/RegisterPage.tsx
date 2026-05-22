@@ -1,14 +1,15 @@
-import { type useState } from 'react';
+import { useState } from 'react';
 import api from '../api/axios';
-import { type useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
-export const RegisterPage = () => {
+const RegisterPage = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
     role: 'USER'
   });
+  
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -17,38 +18,71 @@ export const RegisterPage = () => {
       await api.post('/auth/register', formData);
       alert('Регистрация успешна! Теперь войдите.');
       navigate('/login');
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Ошибка регистрации');
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { error?: string } } };
+      alert(axiosError.response?.data?.error || 'Ошибка регистрации');
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <form onSubmit={handleSubmit} className="w-full max-w-md bg-white p-8 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold mb-6 text-center">Регистрация в DomRent</h2>
-        <input 
-          type="text" placeholder="Имя" className="w-full p-2 mb-4 border rounded"
-          onChange={(e) => setFormData({...formData, name: e.target.value})}
-        />
-        <input 
-          type="email" placeholder="Email" className="w-full p-2 mb-4 border rounded" required
-          onChange={(e) => setFormData({...formData, email: e.target.value})}
-        />
-        <input 
-          type="password" placeholder="Пароль" className="w-full p-2 mb-4 border rounded" required
-          onChange={(e) => setFormData({...formData, password: e.target.value})}
-        />
-        <select 
-          className="w-full p-2 mb-6 border rounded"
-          onChange={(e) => setFormData({...formData, role: e.target.value})}
+    <div className="flex min-h-[80vh] items-center justify-center">
+      <form onSubmit={handleSubmit} className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+        <h2 className="text-3xl font-bold mb-6 text-center text-gray-800">Регистрация</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ваше имя</label>
+            <input 
+              type="text" 
+              placeholder="Иван Иванов" 
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input 
+              type="email" 
+              placeholder="example@mail.com" 
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" 
+              required
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
+            <input 
+              type="password" 
+              placeholder="••••••••" 
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" 
+              required
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Кто вы?</label>
+            <select 
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+              onChange={(e) => setFormData({...formData, role: e.target.value})}
+            >
+              <option value="USER">Я хочу арендовать жилье</option>
+              <option value="LANDLORD">Я хочу сдавать жилье</option>
+            </select>
+          </div>
+        </div>
+
+        <button 
+          type="submit" 
+          className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold mt-8 hover:bg-blue-700 transition shadow-md"
         >
-          <option value="USER">Я хочу арендовать</option>
-          <option value="LANDLORD">Я хочу сдавать жилье</option>
-        </select>
-        <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
-          Зарегистрироваться
+          Создать аккаунт
         </button>
       </form>
     </div>
   );
 };
+
+export { RegisterPage };

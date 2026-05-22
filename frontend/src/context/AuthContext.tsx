@@ -1,5 +1,5 @@
-import { createContext, useState, useEffect, type ReactNode } from 'react';
-import { type User } from '../types';
+import { createContext, useState, useContext, type ReactNode } from 'react';
+import type { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -8,10 +8,9 @@ interface AuthContextType {
   logout: () => void;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Инициализируем состояние сразу из localStorage, чтобы избежать лишних рендеров
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [user, setUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('user');
@@ -38,3 +37,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+// Добавляем хук, чтобы удобно использовать контекст в других файлах
+// eslint-disable-next-line react-refresh/only-export-components
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+};
