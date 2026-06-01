@@ -1,38 +1,17 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const registerSchema = z.object({
-  email: z.string().email('Email должен быть валидным'),
-  password: z.string().min(6, 'Пароль должен быть минимум 6 символов'),
-  name: z.string().optional(),
-  phone: z.string().optional(),
-  role: z.enum(['USER', 'LANDLORD']).optional()
-});
-
-const loginSchema = z.object({
-  email: z.string().email('Email должен быть валидным'),
-  password: z.string().min(1, 'Пароль обязателен')
-});
-
 /**
  * Регистрация пользователя
- * @param {Object} req - Express request объект
+ * @param {Object} req - Express request объект (body уже валидирован middleware)
  * @param {Object} res - Express response объект
  */
 export const register = async (req, res) => {
   try {
-    const parsed = registerSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ 
-        error: parsed.error.errors[0].message 
-      });
-    }
-
-    const { email, password, name, phone, role = 'USER' } = parsed.data;
+    const { email, password, name, phone, role = 'USER' } = req.body;
 
     // Проверка на существующий email
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -80,19 +59,12 @@ export const register = async (req, res) => {
 
 /**
  * Вход пользователя
- * @param {Object} req - Express request объект
+ * @param {Object} req - Express request объект (body уже валидирован middleware)
  * @param {Object} res - Express response объект
  */
 export const login = async (req, res) => {
   try {
-    const parsed = loginSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ 
-        error: parsed.error.errors[0].message 
-      });
-    }
-
-    const { email, password } = parsed.data;
+    const { email, password } = req.body;
 
     // Поиск пользователя по email
     const user = await prisma.user.findUnique({ where: { email } });

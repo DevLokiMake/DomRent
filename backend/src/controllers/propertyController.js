@@ -1,22 +1,10 @@
-import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const propertySchema = z.object({
-  title: z.string().min(1, 'Название объекта обязательно'),
-  description: z.string().min(1, 'Описание обязательно'),
-  price: z.number().positive('Цена должна быть положительной'),
-  type: z.enum(['квартира', 'дом', 'комната'], { 
-    errorMap: () => ({ message: 'Тип должен быть: квартира, дом или комната' }) 
-  }),
-  city: z.string().min(1, 'Город обязателен'),
-  images: z.array(z.string().url('Некорректный URL изображения')).optional().default([])
-});
-
 /**
  * Создание нового объекта недвижимости (только для LANDLORD)
- * @param {Object} req - Express request объект
+ * @param {Object} req - Express request объект (body уже валидирован middleware)
  * @param {Object} res - Express response объект
  */
 export const createProperty = async (req, res) => {
@@ -28,15 +16,18 @@ export const createProperty = async (req, res) => {
       });
     }
 
-    // Валидация данных
-    const parsed = propertySchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ 
-        error: parsed.error.errors[0].message 
+    const { title, description, price, type, contractType, city, images } = req.body;
+
+    // Логика: если города нет, создать его
+    let cityRecord = await prisma.city.findUnique({
+      where: { name: city }
+    });
+
+    if (!cityRecord) {
+      cityRecord = await prisma.city.create({
+        data: { name: city }
       });
     }
-
-    const { title, description, price, type, city, images } = parsed.data;
 
     // Создание объекта
     const property = await prisma.property.create({
@@ -45,7 +36,8 @@ export const createProperty = async (req, res) => {
         description,
         price,
         type,
-        city,
+        contractType,
+        cityId: cityRecord.id,
         images,
         ownerId: req.user.id
       },
@@ -57,7 +49,8 @@ export const createProperty = async (req, res) => {
             name: true,
             phone: true
           }
-        }
+        },
+        city: true
       }
     });
 
@@ -79,20 +72,36 @@ export const createProperty = async (req, res) => {
  */
 export const getAllProperties = async (req, res) => {
   try {
-    const { city, minPrice, maxPrice, type } = req.query;
+    const { cityId, city, minPrice, maxPrice, type, contractType } = req.query;
 
     // Построение условий фильтрации
     const where = {};
 
-    if (city) {
-      where.city = {
-        contains: city,
-        mode: 'insensitive' // Поиск без учета регистра
-      };
+    // Фильтрация по городу (по имени или ID)
+    if (cityId) {
+      where.cityId = parseInt(cityId);
+    } else if (city) {
+      // Найдём city ID по названию
+      const cityRecord = await prisma.city.findUnique({
+        where: { name: city }
+      });
+      if (cityRecord) {
+        where.cityId = cityRecord.id;
+      } else {
+        // Если города нет, вернём пустой результат
+        return res.json({
+          count: 0,
+          properties: []
+        });
+      }
     }
 
     if (type) {
       where.type = type;
+    }
+
+    if (contractType) {
+      where.contractType = contractType;
     }
 
     if (minPrice || maxPrice) {
@@ -117,6 +126,7 @@ export const getAllProperties = async (req, res) => {
             phone: true
           }
         },
+        city: true,
         _count: {
           select: {
             bookings: true,
@@ -164,6 +174,7 @@ export const getPropertyById = async (req, res) => {
             phone: true
           }
         },
+        city: true,
         bookings: {
           select: {
             id: true,
@@ -291,10 +302,27 @@ export const updateProperty = async (req, res) => {
       });
     }
 
+    // Если есть город в запросе, обработаем его
+    let updateData = { ...parsed.data };
+    if (parsed.data.city) {
+      let cityRecord = await prisma.city.findUnique({
+        where: { name: parsed.data.city }
+      });
+
+      if (!cityRecord) {
+        cityRecord = await prisma.city.create({
+          data: { name: parsed.data.city }
+        });
+      }
+
+      updateData.cityId = cityRecord.id;
+      delete updateData.city; // Удалим город из обновления, так как используем cityId
+    }
+
     // Обновление объекта
     const updatedProperty = await prisma.property.update({
       where: { id: propertyId },
-      data: parsed.data,
+      data: updateData,
       include: {
         owner: {
           select: {
@@ -303,7 +331,8 @@ export const updateProperty = async (req, res) => {
             name: true,
             phone: true
           }
-        }
+        },
+        city: true
       }
     });
 

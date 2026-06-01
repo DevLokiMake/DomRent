@@ -1,21 +1,7 @@
-import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { sendBookingNotification } from '../services/telegramService.js';
 
 const prisma = new PrismaClient();
-
-const bookingSchema = z.object({
-  propertyId: z.number().int().positive('ID объекта должен быть положительным числом'),
-  startDate: z.string().datetime('Начальная дата должна быть в формате ISO 8601').or(z.date()),
-  endDate: z.string().datetime('Конечная дата должна быть в формате ISO 8601').or(z.date())
-}).refine(
-  (data) => {
-    const start = new Date(data.startDate);
-    const end = new Date(data.endDate);
-    return end > start;
-  },
-  { message: 'Конечная дата должна быть позже начальной даты' }
-);
 
 /**
  * Вспомогательная функция: проверка пересечения дат
@@ -48,22 +34,14 @@ const calculateTotalPrice = (startDate, endDate, pricePerDay) => {
  * Создание нового бронирования
  * Проверяет наличие объекта и пересечения дат
  * Вычисляет totalPrice
- * @param {Object} req - Express request объект
+ * @param {Object} req - Express request объект (body уже валидирован middleware)
  * @param {Object} res - Express response объект
  */
 export const createBooking = async (req, res) => {
   try {
-    // Валидация данных
-    const parsed = bookingSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: parsed.error.errors[0].message
-      });
-    }
-
-    const { propertyId } = parsed.data;
-    const startDate = new Date(parsed.data.startDate);
-    const endDate = new Date(parsed.data.endDate);
+    const { propertyId } = req.body;
+    const startDate = new Date(req.body.startDate);
+    const endDate = new Date(req.body.endDate);
 
     // Проверка существования объекта
     const property = await prisma.property.findUnique({
@@ -111,7 +89,8 @@ export const createBooking = async (req, res) => {
                 id: true,
                 email: true,
                 name: true,
-                phone: true
+                phone: true,
+                telegramId: true
               }
             }
           }
@@ -127,20 +106,29 @@ export const createBooking = async (req, res) => {
       }
     });
 
+    // Отправка уведомления владельцу объекта в отдельном try/catch
+    // Чтобы если Telegram временно недоступен, бронирование все равно сохранилось
+    try {
+      if (booking.property.owner.telegramId) {
+        await sendBookingNotification(booking.property.owner.id, {
+          propertyTitle: booking.property.title,
+          startDate: booking.startDate,
+          endDate: booking.endDate,
+          totalPrice: booking.totalPrice,
+          guestName: booking.user.name || 'Не указано',
+          guestEmail: booking.user.email,
+          guestPhone: booking.user.phone || 'Не указано'
+        });
+      }
+    } catch (telegramError) {
+      console.error('Ошибка при отправке Telegram-уведомления:', telegramError.message);
+      // Не прерываем выполнение - бронирование уже успешно создано в БД
+    }
+
+    // Отправка ответа клиенту
     res.status(201).json({
       message: 'Бронирование успешно создано',
       booking
-    });
-
-    // Отправка уведомления владельцу объекта
-    await sendBookingNotification(property.ownerId, {
-      propertyTitle: property.title,
-      startDate: booking.startDate,
-      endDate: booking.endDate,
-      totalPrice: booking.totalPrice,
-      guestName: req.user.name || 'Не указано',
-      guestEmail: req.user.email,
-      guestPhone: req.user.phone || 'Не указано'
     });
   } catch (error) {
     console.error('Create booking error:', error);
@@ -243,5 +231,64 @@ export const cancelBooking = async (req, res) => {
   } catch (error) {
     console.error('Cancel booking error:', error);
     res.status(500).json({ error: 'Ошибка при отмене бронирования' });
+  }
+};
+
+/**
+ * Получение всех бронирований объектов владельца
+ * @param {Object} req - Express request объект
+ * @param {Object} res - Express response объект
+ */
+export const getOwnerBookings = async (req, res) => {
+  try {
+    // Получение всех объектов, которыми владеет пользователь
+    const properties = await prisma.property.findMany({
+      where: { ownerId: req.user.id },
+      select: { id: true }
+    });
+
+    const propertyIds = properties.map(p => p.id);
+
+    if (propertyIds.length === 0) {
+      return res.json({
+        count: 0,
+        bookings: []
+      });
+    }
+
+    // Получение всех бронирований для этих объектов
+    const bookings = await prisma.booking.findMany({
+      where: { propertyId: { in: propertyIds } },
+      include: {
+        property: {
+          select: {
+            id: true,
+            title: true,
+            city: true,
+            price: true,
+            images: true
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        }
+      },
+      orderBy: {
+        startDate: 'desc'
+      }
+    });
+
+    res.json({
+      count: bookings.length,
+      bookings
+    });
+  } catch (error) {
+    console.error('Get owner bookings error:', error);
+    res.status(500).json({ error: 'Ошибка при получении бронирований' });
   }
 };

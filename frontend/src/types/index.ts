@@ -1,11 +1,19 @@
+export interface City {
+  id: number;
+  name: string;
+  createdAt?: string;
+}
+
 export interface Property {
   id: number;
   title: string;
   description: string;
   price: number;
-  city: string;
+  cityId?: number;
+  city?: City | string;
   images: string[];
   type: 'квартира' | 'дом' | 'комната';
+  contractType?: 'RENT' | 'SALE';
   ownerId: number;
   createdAt?: string;
   updatedAt?: string;

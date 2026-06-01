@@ -1,4 +1,13 @@
 /**
+ * Интерфейс для города
+ */
+export interface City {
+  id: number;
+  name: string;
+  createdAt?: string;
+}
+
+/**
  * Интерфейс для объекта недвижимости
  */
 export interface Property {
@@ -6,8 +15,10 @@ export interface Property {
   title: string;
   description: string;
   price: number;
-  city: string;
+  cityId: number;
+  city?: City;
   type: string;
+  contractType: 'RENT' | 'SALE';
   images: string[];
   ownerId: number;
   createdAt?: string;

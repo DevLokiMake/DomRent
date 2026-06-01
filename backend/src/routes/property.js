@@ -7,6 +7,7 @@ import {
   deleteProperty
 } from '../controllers/propertyController.js';
 import { authenticateToken } from '../middlewares/auth.js';
+import { validate, propertySchema, updatePropertySchema } from '../middlewares/validate.js';
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ const router = express.Router();
  * POST /api/properties
  * Создание нового объекта (требует аутентификацию и роль LANDLORD)
  */
-router.post('/', authenticateToken, createProperty);
+router.post('/', authenticateToken, validate(propertySchema), createProperty);
 
 /**
  * GET /api/properties
@@ -33,7 +34,7 @@ router.get('/:id', getPropertyById);
  * PUT /api/properties/:id
  * Обновление объекта (требует аутентификацию и владельца)
  */
-router.put('/:id', authenticateToken, updateProperty);
+router.put('/:id', authenticateToken, validate(updatePropertySchema), updateProperty);
 
 /**
  * DELETE /api/properties/:id

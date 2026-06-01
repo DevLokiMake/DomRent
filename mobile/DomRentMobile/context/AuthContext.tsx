@@ -1,30 +1,32 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import axiosInstance from '@/api/axios';
+import { axiosInstance } from '@/api/axios';
 import { User } from '@/types';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  isSignedIn: boolean;
-  signUp: (email: string, password: string, name: string, role?: 'USER' | 'LANDLORD') => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  restoreToken: () => Promise<void>;
+  isAuthenticated: boolean;
+  signup: (email: string, password: string, name: string, role?: 'USER' | 'LANDLORD') => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  restoreSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   /**
    * Восстановление сессии при загрузке приложения
+   * Проверяет сохраненный токен в SecureStore и получает данные пользователя
    */
-  const restoreToken = async () => {
+  const restoreSession = async () => {
     try {
       const storedToken = await SecureStore.getItemAsync('authToken');
 
@@ -33,13 +35,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Проверяем токен и получаем данные пользователя
         try {
-          const response = await axiosInstance.get('/auth/me', {
+          const response = await axiosInstance.get('/users/me', {
             headers: {
               Authorization: `Bearer ${storedToken}`,
             },
           });
 
-          if (response.data && response.data.user) {
+          if (response.data?.user) {
             setUser(response.data.user);
           }
         } catch (error) {
@@ -51,23 +53,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch (error) {
-      console.error('Error restoring token:', error);
+      console.error('Error restoring session:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   /**
-   * Загрузить токен при инициализации приложения
+   * Восстановить сессию при инициализации приложения
    */
   useEffect(() => {
-    restoreToken();
+    restoreSession();
   }, []);
 
   /**
    * Регистрация нового пользователя
    */
-  const signUp = async (email: string, password: string, name: string, role: 'USER' | 'LANDLORD' = 'USER') => {
+  const signup = async (
+    email: string,
+    password: string,
+    name: string,
+    role: 'USER' | 'LANDLORD' = 'USER'
+  ) => {
     try {
       setIsLoading(true);
 
@@ -78,9 +85,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
       });
 
-      if (response.data && response.data.token && response.data.user) {
+      if (response.data?.token && response.data?.user) {
         // Сохраняем токен в защищённое хранилище
         await SecureStore.setItemAsync('authToken', response.data.token);
+        // Сохраняем информацию о пользователе в AsyncStorage для быстрого доступа
+        await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
 
         setToken(response.data.token);
         setUser(response.data.user);
@@ -89,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       }
     } catch (error) {
-      console.error('Sign up error:', error);
+      console.error('Signup error:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -99,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * Вход пользователя
    */
-  const signIn = async (email: string, password: string) => {
+  const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
 
@@ -108,9 +117,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
       });
 
-      if (response.data && response.data.token && response.data.user) {
+      if (response.data?.token && response.data?.user) {
         // Сохраняем токен в защищённое хранилище
         await SecureStore.setItemAsync('authToken', response.data.token);
+        // Сохраняем информацию о пользователе в AsyncStorage для быстрого доступа
+        await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
 
         setToken(response.data.token);
         setUser(response.data.user);
@@ -119,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       }
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('Login error:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -129,12 +140,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * Выход пользователя
    */
-  const signOut = async () => {
+  const logout = async () => {
     try {
       setIsLoading(true);
 
       // Удаляем токен из защищённого хранилища
       await SecureStore.deleteItemAsync('authToken');
+      // Удаляем данные пользователя из AsyncStorage
+      await AsyncStorage.removeItem('user');
 
       // Очищаем заголовок авторизации
       delete axiosInstance.defaults.headers.common['Authorization'];
@@ -142,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(null);
       setUser(null);
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('Logout error:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -153,11 +166,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     token,
     isLoading,
-    isSignedIn: !!user && !!token,
-    signUp,
-    signIn,
-    signOut,
-    restoreToken,
+    isAuthenticated: !!user && !!token,
+    signup,
+    login,
+    logout,
+    restoreSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -165,6 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 /**
  * Hook для использования Auth контекста
+ * @throws Error если используется вне AuthProvider
  */
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);

@@ -1,14 +1,14 @@
-const Joi = require('joi');
-const { PrismaClient } = require('@prisma/client');
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const updateProfileSchema = Joi.object({
-  name: Joi.string().optional(),
-  phone: Joi.string().optional()
+const updateProfileSchema = z.object({
+  name: z.string().optional(),
+  phone: z.string().optional()
 });
 
-const getProfile = async (req, res) => {
+export const getProfile = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -20,12 +20,14 @@ const getProfile = async (req, res) => {
   }
 };
 
-const updateProfile = async (req, res) => {
+export const updateProfile = async (req, res) => {
   try {
-    const { error } = updateProfileSchema.validate(req.body);
-    if (error) return res.status(400).json({ error: error.details[0].message });
+    const parsed = updateProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.errors[0].message });
+    }
 
-    const { name, phone } = req.body;
+    const { name, phone } = parsed.data;
 
     const user = await prisma.user.update({
       where: { id: req.user.id },
@@ -38,5 +40,3 @@ const updateProfile = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
-
-module.exports = { getProfile, updateProfile };

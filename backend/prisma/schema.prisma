@@ -14,6 +14,18 @@ enum Role {
   LANDLORD
 }
 
+enum ContractType {
+  RENT
+  SALE
+}
+
+model City {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  properties Property[]
+  createdAt  DateTime   @default(now())
+}
+
 model User {
   id         Int        @id @default(autoincrement())
   email      String     @unique
@@ -29,19 +41,21 @@ model User {
 }
 
 model Property {
-  id          Int       @id @default(autoincrement())
-  title       String
-  description String
-  price       Float
-  type        String    // квартира, дом, комната
-  city        String
-  images      String[]  // Массив ссылок на фото
-  ownerId     Int
-  owner       User      @relation(fields: [ownerId], references: [id])
-  bookings    Booking[]
-  favorites   Favorite[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           Int          @id @default(autoincrement())
+  title        String
+  description  String
+  price        Float
+  type         String       // квартира, дом, комната
+  contractType ContractType @default(RENT) // RENT или SALE
+  cityId       Int
+  city         City         @relation(fields: [cityId], references: [id])
+  images       String[]     // Массив ссылок на фото
+  ownerId      Int
+  owner        User         @relation(fields: [ownerId], references: [id])
+  bookings     Booking[]
+  favorites    Favorite[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 model Booking {

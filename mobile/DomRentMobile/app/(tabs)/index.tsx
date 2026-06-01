@@ -57,11 +57,6 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ item, onPress }) => {
     </TouchableOpacity>
   );
 };
-        </View>
-      </View>
-    </View>
-  );
-};
 
 export default function HomeScreen() {
   const router = useRouter();

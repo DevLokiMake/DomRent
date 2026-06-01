@@ -7,6 +7,7 @@ import authRoutes from './src/routes/auth.js';
 import propertyRoutes from './src/routes/property.js';
 import bookingRoutes from './src/routes/booking.js';
 import favoriteRoutes from './src/routes/favorite.js';
+import cityRoutes from './src/routes/city.js';
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/favorites', favoriteRoutes);
+app.use('/api/cities', cityRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

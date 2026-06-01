@@ -3,6 +3,9 @@ import HomePage from "./pages/HomePage";
 import { RegisterPage } from './pages/RegisterPage';
 import LoginPage from "./pages/LoginPage";
 import PropertyPage from "./pages/PropertyPage";
+import BookingsPage from "./pages/BookingsPage";
+import FavoritesPage from "./pages/FavoritesPage";
+import CreatePropertyPage from "./pages/CreatePropertyPage";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
 // Внутренний Navbar, который имеет доступ к AuthContext
@@ -20,6 +23,17 @@ const Navbar = () => {
         </Link>
         {user ? (
           <div className="flex items-center space-x-4">
+            <Link to="/bookings" className="text-gray-600 hover:text-blue-600 font-medium">
+              Бронирования
+            </Link>
+            <Link to="/favorites" className="text-gray-600 hover:text-blue-600 font-medium">
+              ❤️ Избранное
+            </Link>
+            {user.role === 'LANDLORD' && (
+              <Link to="/create-property" className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-medium transition">
+                ➕ Добавить объект
+              </Link>
+            )}
             <span className="text-gray-800 font-semibold">
               Привет, {user.name}!
             </span>
@@ -61,6 +75,9 @@ export default function App() {
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/property/:id" element={<PropertyPage />} />
+              <Route path="/bookings" element={<BookingsPage />} />
+              <Route path="/favorites" element={<FavoritesPage />} />
+              <Route path="/create-property" element={<CreatePropertyPage />} />
             </Routes>
           </main>
         </div>
