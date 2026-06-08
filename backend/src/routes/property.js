@@ -4,7 +4,8 @@ import {
   getAllProperties,
   getPropertyById,
   updateProperty,
-  deleteProperty
+  deleteProperty,
+  getNearbyProperties
 } from '../controllers/propertyController.js';
 import { authenticateToken } from '../middlewares/auth.js';
 import { validate, propertySchema, updatePropertySchema } from '../middlewares/validate.js';
@@ -23,6 +24,12 @@ router.post('/', authenticateToken, validate(propertySchema), createProperty);
  * Query параметры: city, minPrice, maxPrice, type
  */
 router.get('/', getAllProperties);
+
+/**
+ * GET /api/properties/nearby?lat=&lng=&radius=
+ * Поиск объектов в радиусе (публичный). MUST be before /:id
+ */
+router.get('/nearby', getNearbyProperties);
 
 /**
  * GET /api/properties/:id

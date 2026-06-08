@@ -21,6 +21,8 @@ export interface Property {
   contractType: 'RENT' | 'SALE';
   images: string[];
   ownerId: number;
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

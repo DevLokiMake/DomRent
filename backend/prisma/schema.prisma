@@ -50,12 +50,16 @@ model Property {
   cityId       Int
   city         City         @relation(fields: [cityId], references: [id])
   images       String[]     // Массив ссылок на фото
+  latitude     Float?       // Широта (DECIMAL-9,6 precision хранится как Float в Prisma)
+  longitude    Float?       // Долгота
   ownerId      Int
   owner        User         @relation(fields: [ownerId], references: [id])
   bookings     Booking[]
   favorites    Favorite[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+
+  @@index([latitude, longitude])
 }
 
 model Booking {

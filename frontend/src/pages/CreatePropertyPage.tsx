@@ -2,7 +2,38 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from "../api/axios";
-import { AlertCircle, CheckCircle, Loader, Plus } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader, Plus, MapPin } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import markerIconPng from 'leaflet/dist/images/marker-icon.png';
+import markerIcon2xPng from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadowPng from 'leaflet/dist/images/marker-shadow.png';
+
+// Fix default Leaflet marker icons for Vite
+const defaultIcon = L.icon({
+  iconUrl: markerIconPng,
+  iconRetinaUrl: markerIcon2xPng,
+  shadowUrl: markerShadowPng,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+L.Marker.prototype.options.icon = defaultIcon;
+
+/** Компонент внутри MapContainer, слушает клики и ставит маркер */
+function LocationPicker({
+  onSelect,
+}: {
+  onSelect: (lat: number, lng: number) => void;
+}) {
+  useMapEvents({
+    click(e) {
+      onSelect(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
 
 interface City {
   id: number;
@@ -17,6 +48,8 @@ interface CreatePropertyForm {
   contractType: 'RENT' | 'SALE';
   price: string;
   images: string;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface ValidationErrors {
@@ -41,7 +74,9 @@ const CreatePropertyPage: React.FC = () => {
     type: 'квартира',
     contractType: 'RENT',
     price: '',
-    images: ''
+    images: '',
+    latitude: null,
+    longitude: null,
   });
 
   const [loading, setLoading] = useState(false);
@@ -163,7 +198,9 @@ const CreatePropertyPage: React.FC = () => {
         type: form.type,
         contractType: form.contractType,
         price: parseFloat(form.price),
-        images: imageArray.length > 0 ? imageArray : []
+        images: imageArray.length > 0 ? imageArray : [],
+        latitude: form.latitude,
+        longitude: form.longitude,
       };
 
       await axiosInstance.post('/properties', payload);
@@ -448,6 +485,53 @@ https://example.com/image3.jpg`}
             <p className="text-gray-500 text-xs mt-2">
               Введите полные URL-адреса изображений, каждую на новой строке. Поле опционально.
             </p>
+          </div>
+
+          {/* Местоположение на карте */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              <MapPin className="inline w-4 h-4 mr-1 text-blue-500" />
+              Местоположение на карте (необязательно)
+            </label>
+            <p className="text-xs text-gray-500 mb-3">
+              Кликните по карте, чтобы указать точное расположение объекта. Казахстан по центру.
+            </p>
+            <div className="rounded-xl overflow-hidden border border-gray-200 mb-2" style={{ height: 320 }}>
+              <MapContainer
+                center={[48.0196, 66.9237]}
+                zoom={5}
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <LocationPicker
+                  onSelect={(lat, lng) =>
+                    setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }))
+                  }
+                />
+                {form.latitude !== null && form.longitude !== null && (
+                  <Marker position={[form.latitude, form.longitude]} />
+                )}
+              </MapContainer>
+            </div>
+            {form.latitude !== null && form.longitude !== null ? (
+              <div className="flex items-center justify-between bg-blue-50 rounded-lg px-4 py-2 border border-blue-100">
+                <span className="text-sm text-blue-700 font-medium">
+                  📍 {form.latitude.toFixed(6)}, {form.longitude.toFixed(6)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, latitude: null, longitude: null }))}
+                  className="text-xs text-red-500 hover:text-red-700 transition"
+                >
+                  Сбросить
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center">Метка не установлена</p>
+            )}
           </div>
 
           {/* Кнопки */}

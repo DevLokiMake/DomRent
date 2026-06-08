@@ -8,8 +8,11 @@ interface BookingWithProperty extends Booking {
   property?: {
     id: number;
     title: string;
-    city: string;
+    description?: string;
+    city: string | { id: number; name: string };
     price: number;
+    type?: string;
+    contractType?: string;
     images: string[];
   };
   user?: {
@@ -19,6 +22,12 @@ interface BookingWithProperty extends Booking {
     phone: string | null;
   };
 }
+
+const getCityName = (city?: string | { id: number; name: string }): string => {
+  if (!city) return "Город";
+  if (typeof city === "object") return city.name;
+  return city;
+};
 
 interface OwnerBooking extends BookingWithProperty {
   user: {
@@ -180,14 +189,27 @@ const BookingsPage = () => {
 
         {/* Информация */}
         <div className="p-5">
-          <h3 className="text-xl font-bold text-gray-900 mb-1">
-            {booking.property?.title || "Объект"}
-          </h3>
-
-          <div className="flex items-center text-gray-600 mb-4">
-            <MapPin className="w-4 h-4 mr-1 text-blue-500" />
-            <span className="text-sm">{booking.property?.city || "Город"}</span>
+          <div className="flex items-start justify-between mb-1">
+            <h3 className="text-xl font-bold text-gray-900">
+              {booking.property?.title || "Объект"}
+            </h3>
+            {booking.property?.type && (
+              <span className="ml-2 flex-shrink-0 bg-blue-100 text-blue-700 text-xs font-semibold px-2 py-1 rounded-full uppercase">
+                {booking.property.type}
+              </span>
+            )}
           </div>
+
+          <div className="flex items-center text-gray-600 mb-2">
+            <MapPin className="w-4 h-4 mr-1 text-blue-500" />
+            <span className="text-sm">{getCityName(booking.property?.city)}</span>
+          </div>
+
+          {booking.property?.description && (
+            <p className="text-sm text-gray-500 mb-3 line-clamp-2">
+              {booking.property.description}
+            </p>
+          )}
 
           <div className="space-y-2 mb-4">
             <div className="flex items-center text-gray-700">
@@ -197,7 +219,11 @@ const BookingsPage = () => {
               </span>
             </div>
             <div className="text-sm text-gray-600">
-              <span className="font-semibold text-gray-900">{nights}</span> ночей
+              <span className="font-semibold text-gray-900">{nights}</span> ночей ·{" "}
+              <span className="font-semibold text-gray-900">
+                {booking.property?.price?.toLocaleString()} ₸
+              </span>{" "}
+              / ночь
             </div>
           </div>
 
@@ -257,13 +283,25 @@ const BookingsPage = () => {
 
         {/* Информация об объекте */}
         <div className="p-5 border-b border-gray-200">
-          <h3 className="text-lg font-bold text-gray-900 mb-1">
-            {booking.property?.title || "Объект"}
-          </h3>
-          <div className="flex items-center text-gray-600 mb-3">
-            <MapPin className="w-4 h-4 mr-1 text-blue-500" />
-            <span className="text-sm">{booking.property?.city || "Город"}</span>
+          <div className="flex items-start justify-between mb-1">
+            <h3 className="text-lg font-bold text-gray-900">
+              {booking.property?.title || "Объект"}
+            </h3>
+            {booking.property?.type && (
+              <span className="ml-2 flex-shrink-0 bg-blue-100 text-blue-700 text-xs font-semibold px-2 py-1 rounded-full uppercase">
+                {booking.property.type}
+              </span>
+            )}
           </div>
+          <div className="flex items-center text-gray-600 mb-2">
+            <MapPin className="w-4 h-4 mr-1 text-blue-500" />
+            <span className="text-sm">{getCityName(booking.property?.city)}</span>
+          </div>
+          {booking.property?.description && (
+            <p className="text-sm text-gray-500 mb-3 line-clamp-2">
+              {booking.property.description}
+            </p>
+          )}
 
           <div className="bg-green-50 rounded-lg p-3">
             <div className="flex justify-between items-center">
