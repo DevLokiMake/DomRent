@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { MapPin, Loader, AlertCircle, ArrowLeft, Heart } from "lucide-react";
+import { MapPin, Loader, AlertCircle, ArrowLeft, Heart, Star } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import type { PropertyWithOwner, Booking } from "../types";
@@ -49,6 +49,11 @@ const PropertyPage = () => {
   // Состояния для текущих бронирований (для владельца)
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+
+  // Отзывы
+  interface Review { id: number; rating: number; text: string; createdAt: string; author: { name: string | null; email: string } }
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [avgRating, setAvgRating] = useState<number | null>(null);
 
   // Загрузка свойства
   useEffect(() => {
@@ -208,6 +213,15 @@ const PropertyPage = () => {
       setBookingLoading(false);
     }
   };
+
+  // Загрузка отзывов
+  useEffect(() => {
+    if (!id) return;
+    axiosInstance.get(`/reviews/property/${id}`).then(res => {
+      setReviews(res.data.reviews || []);
+      setAvgRating(res.data.avgRating ?? null);
+    }).catch(() => {});
+  }, [id]);
 
   // Расчёт количества дней и итоговой цены
   const calculateDaysAndPrice = () => {
@@ -436,6 +450,41 @@ const PropertyPage = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Отзывы */}
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <Star className="w-6 h-6 text-yellow-500" />
+                    Отзывы
+                    {avgRating !== null && (
+                      <span className="text-lg font-semibold text-gray-700">
+                        · {avgRating.toFixed(1)} ({reviews.length})
+                      </span>
+                    )}
+                  </h2>
+                  {reviews.length === 0 ? (
+                    <p className="text-gray-500 text-sm">Отзывов пока нет. Станьте первым!</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {reviews.map(r => (
+                        <div key={r.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="flex gap-0.5">
+                              {[1,2,3,4,5].map(s => (
+                                <Star key={s} className={`w-4 h-4 ${s <= r.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+                              ))}
+                            </div>
+                            <span className="font-semibold text-gray-800 text-sm">{r.author?.name || r.author?.email}</span>
+                            <span className="text-xs text-gray-400 ml-auto">
+                              {new Date(r.createdAt).toLocaleDateString("ru-RU")}
+                            </span>
+                          </div>
+                          <p className="text-gray-700 text-sm">{r.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Информация о владельце */}
                 {property.owner && (

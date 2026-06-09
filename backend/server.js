@@ -8,6 +8,10 @@ import propertyRoutes from './src/routes/property.js';
 import bookingRoutes from './src/routes/booking.js';
 import favoriteRoutes from './src/routes/favorite.js';
 import cityRoutes from './src/routes/city.js';
+import reviewRoutes from './src/routes/review.js';
+import messageRoutes from './src/routes/message.js';
+import notificationRoutes from './src/routes/notification.js';
+import uploadRoutes from './src/routes/upload.js';
 
 dotenv.config();
 
@@ -31,6 +35,10 @@ app.use('/api/properties', propertyRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/cities', cityRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

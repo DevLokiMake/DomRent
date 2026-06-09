@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from "../api/axios";
-import { AlertCircle, CheckCircle, Loader, Plus, MapPin } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader, Plus, MapPin, Upload, X, Star } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import markerIconPng from 'leaflet/dist/images/marker-icon.png';
@@ -47,7 +47,6 @@ interface CreatePropertyForm {
   type: 'квартира' | 'дом' | 'комната';
   contractType: 'RENT' | 'SALE';
   price: string;
-  images: string;
   latitude: number | null;
   longitude: number | null;
 }
@@ -74,10 +73,15 @@ const CreatePropertyPage: React.FC = () => {
     type: 'квартира',
     contractType: 'RENT',
     price: '',
-    images: '',
     latitude: null,
     longitude: null,
   });
+
+  // Фото
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [coverIndex, setCoverIndex] = useState<number>(0);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +155,39 @@ const CreatePropertyPage: React.FC = () => {
     }
   };
 
+  // Загрузка фото
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    if (uploadedImages.length + files.length > 20) {
+      alert("Максимум 20 фотографий");
+      return;
+    }
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      files.forEach(f => formData.append("images", f));
+      const res = await axiosInstance.post("/upload/images", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const urls: string[] = res.data.urls || [];
+      setUploadedImages(prev => [...prev, ...urls]);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Ошибка загрузки фото");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeImage = (idx: number) => {
+    setUploadedImages(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      if (coverIndex >= next.length) setCoverIndex(Math.max(0, next.length - 1));
+      return next;
+    });
+  };
+
   // Добавление нового города
   const handleAddNewCity = async () => {
     if (!newCityName.trim()) {
@@ -185,11 +222,7 @@ const CreatePropertyPage: React.FC = () => {
     setError(null);
 
     try {
-      // Парсим изображения (разделяем по новым строкам и удаляем пустые)
-      const imageArray = form.images
-        .split('\n')
-        .map((url) => url.trim())
-        .filter((url) => url.length > 0);
+      const coverImage = uploadedImages[coverIndex] || uploadedImages[0] || null;
 
       const payload = {
         title: form.title.trim(),
@@ -198,7 +231,8 @@ const CreatePropertyPage: React.FC = () => {
         type: form.type,
         contractType: form.contractType,
         price: parseFloat(form.price),
-        images: imageArray.length > 0 ? imageArray : [],
+        images: uploadedImages,
+        coverImage,
         latitude: form.latitude,
         longitude: form.longitude,
       };
@@ -465,26 +499,54 @@ const CreatePropertyPage: React.FC = () => {
               )}
             </div>
 
-          {/* Изображения */}
+          {/* Фотографии */}
           <div>
-            <label htmlFor="images" className="block text-sm font-medium text-gray-900 mb-2">
-              Ссылки на изображения (одна ссылка в строке)
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              Фотографии объекта (до 20 штук)
             </label>
-            <textarea
-              id="images"
-              name="images"
-              value={form.images}
-              onChange={handleInputChange}
-              placeholder={`https://example.com/image1.jpg
-https://example.com/image2.jpg
-https://example.com/image3.jpg`}
-              rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition resize-none bg-white"
-              disabled={loading}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFileUpload}
             />
-            <p className="text-gray-500 text-xs mt-2">
-              Введите полные URL-адреса изображений, каждую на новой строке. Поле опционально.
-            </p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || uploadedImages.length >= 20}
+              className="w-full border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-xl p-6 flex flex-col items-center gap-2 transition disabled:opacity-50"
+            >
+              {uploading ? (
+                <><Loader className="w-8 h-8 animate-spin text-blue-500" /><span className="text-sm text-gray-500">Загрузка...</span></>
+              ) : (
+                <><Upload className="w-8 h-8 text-gray-400" /><span className="text-sm font-medium text-gray-600">Нажмите для загрузки фото</span><span className="text-xs text-gray-400">JPG, PNG, WebP · до 10 МБ каждое</span></>
+              )}
+            </button>
+            {uploadedImages.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-gray-500 mb-2">Нажмите ★ чтобы сделать обложкой:</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {uploadedImages.map((url, i) => (
+                    <div key={i} className={`relative rounded-lg overflow-hidden border-2 ${i === coverIndex ? "border-blue-500" : "border-transparent"}`}>
+                      <img src={url} alt="" className="w-full h-20 object-cover" />
+                      <div className="absolute inset-0 bg-black/20 flex items-start justify-between p-1">
+                        <button type="button" onClick={() => setCoverIndex(i)} title="Сделать обложкой">
+                          <Star className={`w-4 h-4 ${i === coverIndex ? "fill-yellow-400 text-yellow-400" : "text-white"}`} />
+                        </button>
+                        <button type="button" onClick={() => removeImage(i)}>
+                          <X className="w-4 h-4 text-white hover:text-red-300" />
+                        </button>
+                      </div>
+                      {i === coverIndex && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-blue-500 text-white text-xs text-center py-0.5">обложка</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Местоположение на карте */}

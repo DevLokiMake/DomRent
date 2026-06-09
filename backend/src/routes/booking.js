@@ -3,7 +3,8 @@ import {
   createBooking,
   getUserBookings,
   getOwnerBookings,
-  cancelBooking
+  cancelBooking,
+  getBookingById
 } from '../controllers/bookingController.js';
 import { authenticateToken } from '../middlewares/auth.js';
 import { validate, bookingSchema } from '../middlewares/validate.js';
@@ -28,6 +29,12 @@ router.get('/my', authenticateToken, getUserBookings);
  * Получение всех бронирований объектов текущего пользователя (требует аутентификацию)
  */
 router.get('/owner', authenticateToken, getOwnerBookings);
+
+/**
+ * GET /api/bookings/:id
+ * Получение одного бронирования по ID (для чата)
+ */
+router.get('/:id', authenticateToken, getBookingById);
 
 /**
  * DELETE /api/bookings/:id
