@@ -68,7 +68,7 @@ export const createReview = async (req, res) => {
     createNotification(
       booking.property.ownerId,
       'REVIEW_NEW',
-      '⭐ Новый отзыв',
+      'Новый отзыв',
       `${booking.user.name || booking.user.email} оставил отзыв ${rating}★ на «${booking.property.title}»`,
       review.id
     );

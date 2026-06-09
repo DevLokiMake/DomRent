@@ -2,38 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from "../api/axios";
-import { AlertCircle, CheckCircle, Loader, Plus, MapPin, Upload, X, Star, Wifi, Car, PawPrint, BedDouble } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
-import markerIconPng from 'leaflet/dist/images/marker-icon.png';
-import markerIcon2xPng from 'leaflet/dist/images/marker-icon-2x.png';
-import markerShadowPng from 'leaflet/dist/images/marker-shadow.png';
-
-// Fix default Leaflet marker icons for Vite
-const defaultIcon = L.icon({
-  iconUrl: markerIconPng,
-  iconRetinaUrl: markerIcon2xPng,
-  shadowUrl: markerShadowPng,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
-L.Marker.prototype.options.icon = defaultIcon;
-
-/** Компонент внутри MapContainer, слушает клики и ставит маркер */
-function LocationPicker({
-  onSelect,
-}: {
-  onSelect: (lat: number, lng: number) => void;
-}) {
-  useMapEvents({
-    click(e) {
-      onSelect(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
+import {
+  AlertCircle, CheckCircle, Loader, Plus, MapPin,
+  Upload, X, Star, Wifi, Car, PawPrint, BedDouble,
+} from 'lucide-react';
 
 interface City {
   id: number;
@@ -44,6 +16,7 @@ interface CreatePropertyForm {
   title: string;
   description: string;
   city: string;
+  address: string;
   type: 'квартира' | 'дом' | 'комната';
   contractType: 'RENT' | 'SALE';
   price: string;
@@ -59,33 +32,28 @@ interface ValidationErrors {
   [key: string]: string;
 }
 
+const PROPERTY_TYPES = [
+  { value: 'квартира', label: 'Квартира' },
+  { value: 'дом',      label: 'Дом' },
+  { value: 'комната',  label: 'Комната' },
+] as const;
+
 const CreatePropertyPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, token } = useAuth();
 
-  // Редирект на логин если не авторизован
   useEffect(() => {
-    if (!token) {
-      navigate('/login');
-    }
+    if (!token) navigate('/login');
   }, [token, navigate]);
 
   const [form, setForm] = useState<CreatePropertyForm>({
-    title: '',
-    description: '',
-    city: '',
-    type: 'квартира',
-    contractType: 'RENT',
-    price: '',
-    rooms: '',
-    hasWifi: false,
-    hasParking: false,
-    petsAllowed: false,
-    latitude: null,
-    longitude: null,
+    title: '', description: '', city: '', address: '',
+    type: 'квартира', contractType: 'RENT',
+    price: '', rooms: '',
+    hasWifi: false, hasParking: false, petsAllowed: false,
+    latitude: null, longitude: null,
   });
 
-  // Фото
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [coverIndex, setCoverIndex] = useState<number>(0);
   const [uploading, setUploading] = useState(false);
@@ -95,96 +63,80 @@ const CreatePropertyPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
-  
-  // Новые состояния для городов
+
   const [cities, setCities] = useState<City[]>([]);
   const [citiesLoading, setCitiesLoading] = useState(true);
   const [showNewCityInput, setShowNewCityInput] = useState(false);
   const [newCityName, setNewCityName] = useState('');
 
-  // Загрузка городов при монтировании
-  useEffect(() => {
-    const fetchCities = async () => {
-      try {
-        setCitiesLoading(true);
-        const response = await axiosInstance.get('/cities');
-        setCities(response.data.cities || []);
-      } catch (err) {
-        console.error('Error loading cities:', err);
-        setCities([]);
-      } finally {
-        setCitiesLoading(false);
-      }
-    };
+  const [geocoding, setGeocoding] = useState(false);
 
-    fetchCities();
+  useEffect(() => {
+    axiosInstance.get('/cities')
+      .then(r => setCities(r.data.cities || []))
+      .catch(() => {})
+      .finally(() => setCitiesLoading(false));
   }, []);
 
   const validateForm = (): boolean => {
     const errors: ValidationErrors = {};
-
-    if (!form.title.trim()) {
-      errors.title = 'Название обязательно';
-    }
-
-    if (!form.description.trim()) {
-      errors.description = 'Описание обязательно';
-    }
-
-    if (!form.city.trim()) {
-      errors.city = 'Город обязателен';
-    }
-
-    if (!form.price) {
-      errors.price = 'Цена обязательна';
-    } else if (parseFloat(form.price) <= 0) {
-      errors.price = 'Цена должна быть больше нуля';
-    }
-
+    if (!form.title.trim())       errors.title       = 'Название обязательно';
+    if (!form.description.trim()) errors.description = 'Описание обязательно';
+    if (!form.city.trim())        errors.city        = 'Город обязателен';
+    if (!form.price)              errors.price       = 'Цена обязательна';
+    else if (parseFloat(form.price) <= 0) errors.price = 'Цена должна быть больше нуля';
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value
-    }));
-
-    // Очистить ошибку поля при изменении
+    setForm(prev => ({ ...prev, [name]: value }));
     if (validationErrors[name]) {
-      setValidationErrors((prev) => ({
-        ...prev,
-        [name]: ''
-      }));
+      setValidationErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-  // Загрузка фото
+  // Геокодирование по введённому адресу (Nominatim)
+  const handleGeocode = async () => {
+    const query = [form.address, form.city, 'Казахстан'].filter(Boolean).join(', ');
+    if (!query.trim()) return;
+    try {
+      setGeocoding(true);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=kz`,
+        { headers: { 'Accept-Language': 'ru' } }
+      );
+      const data = await res.json();
+      if (data.length > 0) {
+        setForm(prev => ({ ...prev, latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) }));
+      } else {
+        alert('Адрес не найден. Попробуйте ввести точнее.');
+      }
+    } catch {
+      alert('Ошибка при поиске адреса');
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    if (uploadedImages.length + files.length > 20) {
-      alert("Максимум 20 фотографий");
-      return;
-    }
+    if (uploadedImages.length + files.length > 20) { alert('Максимум 20 фотографий'); return; }
     try {
       setUploading(true);
       const formData = new FormData();
-      files.forEach(f => formData.append("images", f));
-      const res = await axiosInstance.post("/upload/images", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      files.forEach(f => formData.append('images', f));
+      const res = await axiosInstance.post('/upload/images', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-      const urls: string[] = res.data.urls || [];
-      setUploadedImages(prev => [...prev, ...urls]);
+      setUploadedImages(prev => [...prev, ...(res.data.urls || [])]);
     } catch (err: any) {
-      alert(err.response?.data?.error || "Ошибка загрузки фото");
+      alert(err.response?.data?.error || 'Ошибка загрузки фото');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -196,43 +148,22 @@ const CreatePropertyPage: React.FC = () => {
     });
   };
 
-  // Добавление нового города
   const handleAddNewCity = async () => {
-    if (!newCityName.trim()) {
-      alert('Пожалуйста, введите название города');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      // Просто добавим город в список локально, так как на бэкенде он создастся автоматически
-      const newCity: City = {
-        id: Date.now(), // временный ID
-        name: newCityName
-      };
-      setCities([...cities, newCity]);
-      setForm(prev => ({ ...prev, city: newCityName }));
-      setNewCityName('');
-      setShowNewCityInput(false);
-    } finally {
-      setLoading(false);
-    }
+    if (!newCityName.trim()) return;
+    setCities(prev => [...prev, { id: Date.now(), name: newCityName }]);
+    setForm(prev => ({ ...prev, city: newCityName }));
+    setNewCityName('');
+    setShowNewCityInput(false);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
+    if (!validateForm()) return;
     setLoading(true);
     setError(null);
-
     try {
       const coverImage = uploadedImages[coverIndex] || uploadedImages[0] || null;
-
-      const payload = {
+      await axiosInstance.post('/properties', {
         title: form.title.trim(),
         description: form.description.trim(),
         city: form.city.trim(),
@@ -247,305 +178,217 @@ const CreatePropertyPage: React.FC = () => {
         hasWifi: form.hasWifi,
         hasParking: form.hasParking,
         petsAllowed: form.petsAllowed,
-      };
-
-      await axiosInstance.post('/properties', payload);
-
+      });
       setSuccess(true);
-
-      // Редирект на главную через 1.5 секунды
-      setTimeout(() => {
-        navigate('/');
-      }, 1500);
+      setTimeout(() => navigate('/'), 1500);
     } catch (err: any) {
-      console.error('Error creating property:', err);
-
-      // Обработка ошибок от бэкенда
       if (err.response?.status === 403) {
-        setError('Только арендодатели могут добавлять объекты. Измените свою роль в профиле.');
-      } else if (err.response?.data?.error) {
-        setError(err.response.data.error);
+        setError('Только арендодатели могут добавлять объекты. Измените роль в профиле.');
       } else if (err.response?.data?.details) {
-        // Ошибки валидации от middleware
         const fieldErrors: ValidationErrors = {};
-        err.response.data.details.forEach((detail: any) => {
-          fieldErrors[detail.path] = detail.message;
-        });
+        err.response.data.details.forEach((d: any) => { fieldErrors[d.path] = d.message; });
         setValidationErrors(fieldErrors);
         setError('Пожалуйста, исправьте ошибки в форме');
       } else {
-        setError('Ошибка при создании объекта. Попробуйте еще раз.');
+        setError(err.response?.data?.error || 'Ошибка при создании объекта');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  if (!user || !token) {
-    return null;
-  }
+  if (!user || !token) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-12 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Заголовок */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            🏠 Добавить новый объект
-          </h1>
-          <p className="text-gray-600">
-            Заполните информацию о вашем жилье, чтобы начать принимать бронирования
-          </p>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Разместить объявление</h1>
+          <p className="text-gray-500 dark:text-gray-400">Заполните информацию о вашем жилье</p>
         </div>
 
-        {/* Успешное создание */}
         {success && (
-          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg flex items-start gap-3">
-            <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
+          <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-green-900">Объект успешно создан!</h3>
-              <p className="text-green-700 text-sm mt-1">
-                Сейчас вы будете перенаправлены на главную страницу...
-              </p>
+              <p className="font-semibold text-green-900 dark:text-green-400">Объект успешно создан!</p>
+              <p className="text-green-700 dark:text-green-500 text-sm mt-0.5">Перенаправление на главную...</p>
             </div>
           </div>
         )}
 
-        {/* Общая ошибка */}
         {error && !success && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-red-900">Ошибка</h3>
-              <p className="text-red-700 text-sm mt-1">{error}</p>
-            </div>
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
           </div>
         )}
 
-        {/* Форма */}
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-lg shadow-md p-8 space-y-6"
-        >
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-8 space-y-6">
+
           {/* Название */}
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-900 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
               Название объекта *
             </label>
             <input
-              type="text"
-              id="title"
-              name="title"
-              value={form.title}
+              type="text" name="title" value={form.title}
               onChange={handleInputChange}
               placeholder="Например: Уютная квартира в центре города"
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition ${
-                validationErrors.title
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-300 bg-white'
+              className={`w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 transition dark:text-white ${
+                validationErrors.title ? 'border-red-400' : 'border-gray-200 dark:border-gray-700'
               }`}
               disabled={loading}
             />
-            {validationErrors.title && (
-              <p className="text-red-600 text-sm mt-1">{validationErrors.title}</p>
-            )}
+            {validationErrors.title && <p className="text-red-500 text-xs mt-1">{validationErrors.title}</p>}
           </div>
 
           {/* Описание */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-900 mb-2">
-              Подробное описание *
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+              Описание *
             </label>
             <textarea
-              id="description"
-              name="description"
-              value={form.description}
+              name="description" value={form.description}
               onChange={handleInputChange}
-              placeholder="Опишите особенности вашего объекта: количество комнат, удобства, инфраструктура рядом..."
+              placeholder="Опишите особенности: количество комнат, удобства, инфраструктура рядом..."
               rows={4}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition resize-none ${
-                validationErrors.description
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-300 bg-white'
+              className={`w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 transition resize-none dark:text-white ${
+                validationErrors.description ? 'border-red-400' : 'border-gray-200 dark:border-gray-700'
               }`}
               disabled={loading}
             />
-            {validationErrors.description && (
-              <p className="text-red-600 text-sm mt-1">{validationErrors.description}</p>
-            )}
+            {validationErrors.description && <p className="text-red-500 text-xs mt-1">{validationErrors.description}</p>}
           </div>
 
-          {/* Город и Тип */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Город и тип */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Город */}
             <div>
-              <label htmlFor="city" className="block text-sm font-medium text-gray-900 mb-2">
-                Город * {showNewCityInput && <span className="text-xs text-blue-600">(добавление нового)</span>}
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Город *
               </label>
               {!showNewCityInput ? (
                 <div className="flex gap-2">
                   <select
-                    id="city"
-                    name="city"
-                    value={form.city}
-                    onChange={handleInputChange}
-                    className={`flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition ${
-                      validationErrors.city
-                        ? 'border-red-500 bg-red-50'
-                        : 'border-gray-300 bg-white'
+                    name="city" value={form.city} onChange={handleInputChange}
+                    className={`flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-800 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 transition dark:text-white ${
+                      validationErrors.city ? 'border-red-400' : 'border-gray-200 dark:border-gray-700'
                     }`}
                     disabled={loading || citiesLoading}
                   >
                     <option value="">Выберите город...</option>
-                    {cities.map(city => (
-                      <option key={city.id} value={city.name}>{city.name}</option>
-                    ))}
+                    {cities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => setShowNewCityInput(true)}
-                    className="px-4 py-2 border border-blue-300 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition flex items-center gap-1"
-                    title="Добавить новый город"
-                  >
-                    <Plus size={18} />
+                  <button type="button" onClick={() => setShowNewCityInput(true)}
+                    className="px-3 py-3 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               ) : (
                 <div className="flex gap-2">
                   <input
-                    type="text"
-                    value={newCityName}
-                    onChange={(e) => setNewCityName(e.target.value)}
+                    type="text" value={newCityName}
+                    onChange={e => setNewCityName(e.target.value)}
                     placeholder="Название города"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition bg-white"
+                    className="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:text-white transition"
                     disabled={loading}
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddNewCity}
-                    disabled={loading}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
-                  >
-                    ✓
+                  <button type="button" onClick={handleAddNewCity} disabled={loading}
+                    className="px-3 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl hover:bg-gray-700 transition disabled:opacity-50">
+                    <CheckCircle className="w-4 h-4" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowNewCityInput(false);
-                      setNewCityName('');
-                    }}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
-                  >
-                    ✕
+                  <button type="button" onClick={() => { setShowNewCityInput(false); setNewCityName(''); }}
+                    className="px-3 py-3 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 rounded-2xl hover:bg-gray-100 transition">
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
-              {validationErrors.city && (
-                <p className="text-red-600 text-sm mt-1">{validationErrors.city}</p>
-              )}
+              {validationErrors.city && <p className="text-red-500 text-xs mt-1">{validationErrors.city}</p>}
             </div>
 
             {/* Тип жилья */}
             <div>
-              <label htmlFor="type" className="block text-sm font-medium text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                 Тип жилья *
               </label>
               <select
-                id="type"
-                name="type"
-                value={form.type}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition bg-white"
+                name="type" value={form.type} onChange={handleInputChange}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 transition dark:text-white"
                 disabled={loading}
               >
-                <option value="квартира">🏢 Квартира</option>
-                <option value="дом">🏡 Дом</option>
-                <option value="комната">🛏️ Комната</option>
+                {PROPERTY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
           </div>
 
           {/* Тип сделки и цена */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6"></div>
-            {/* Тип сделки */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="contractType" className="block text-sm font-medium text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                 Тип сделки *
               </label>
               <select
-                id="contractType"
-                name="contractType"
-                value={form.contractType}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition bg-white"
+                name="contractType" value={form.contractType} onChange={handleInputChange}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 transition dark:text-white"
                 disabled={loading}
               >
-                <option value="RENT">🔑 Аренда</option>
-                <option value="SALE">🏠 Продажа</option>
+                <option value="RENT">Аренда</option>
+                <option value="SALE">Продажа</option>
               </select>
             </div>
-
-            {/* Цена */}
             <div>
-              <label htmlFor="price" className="block text-sm font-medium text-gray-900 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                 Цена {form.contractType === 'RENT' ? 'за ночь' : 'продажи'} (₸) *
               </label>
               <input
-                type="number"
-                id="price"
-                name="price"
-                value={form.price}
+                type="number" name="price" value={form.price}
                 onChange={handleInputChange}
-                placeholder="Например: 50000"
-                min="0"
-                step="0.01"
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition ${
-                  validationErrors.price
-                    ? 'border-red-500 bg-red-50'
-                    : 'border-gray-300 bg-white'
+                placeholder="50 000"
+                min="0" step="0.01"
+                className={`w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 transition dark:text-white ${
+                  validationErrors.price ? 'border-red-400' : 'border-gray-200 dark:border-gray-700'
                 }`}
                 disabled={loading}
               />
-              {validationErrors.price && (
-                <p className="text-red-600 text-sm mt-1">{validationErrors.price}</p>
-              )}
+              {validationErrors.price && <p className="text-red-500 text-xs mt-1">{validationErrors.price}</p>}
             </div>
+          </div>
 
-          {/* Количество комнат */}
+          {/* Комнаты */}
           <div>
-            <label htmlFor="rooms" className="block text-sm font-medium text-gray-900 mb-2">
-              <BedDouble className="inline w-4 h-4 mr-1 text-gray-500" />
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+              <BedDouble className="inline w-4 h-4 mr-1 text-gray-400" />
               Количество комнат
             </label>
             <select
-              id="rooms"
               value={form.rooms}
               onChange={e => setForm(p => ({ ...p, rooms: e.target.value }))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:text-white transition"
               disabled={loading}
             >
               <option value="">Не указано</option>
-              {[1,2,3,4,5].map(n => <option key={n} value={String(n)}>{n} {n === 5 ? "+" : ""} комн.</option>)}
+              {[1,2,3,4,5].map(n => <option key={n} value={String(n)}>{n}{n === 5 ? '+' : ''} комн.</option>)}
             </select>
           </div>
 
           {/* Удобства */}
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-3">Удобства</label>
-            <div className="flex flex-wrap gap-3">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Удобства</label>
+            <div className="flex flex-wrap gap-2">
               {([
-                { key: 'hasWifi',     label: 'Wi-Fi',    icon: <Wifi className="w-4 h-4" />     },
-                { key: 'hasParking',  label: 'Парковка', icon: <Car className="w-4 h-4" />       },
-                { key: 'petsAllowed', label: 'Животные', icon: <PawPrint className="w-4 h-4" /> },
+                { key: 'hasWifi',     label: 'Wi-Fi',    icon: <Wifi className="w-4 h-4" />      },
+                { key: 'hasParking',  label: 'Парковка', icon: <Car className="w-4 h-4" />        },
+                { key: 'petsAllowed', label: 'Животные', icon: <PawPrint className="w-4 h-4" />  },
               ] as { key: 'hasWifi' | 'hasParking' | 'petsAllowed'; label: string; icon: React.ReactNode }[]).map(({ key, label, icon }) => (
                 <button
-                  key={key}
-                  type="button"
+                  key={key} type="button"
                   onClick={() => setForm(p => ({ ...p, [key]: !p[key] }))}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-all ${
                     form[key]
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'
+                      ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400'
                   }`}
                 >
                   {icon}{label}
@@ -556,47 +399,36 @@ const CreatePropertyPage: React.FC = () => {
 
           {/* Фотографии */}
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">
-              Фотографии объекта (до 20 штук)
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+              Фотографии (до 20 штук)
             </label>
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleFileUpload}
-            />
+            <input type="file" ref={fileInputRef} accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading || uploadedImages.length >= 20}
-              className="w-full border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-xl p-6 flex flex-col items-center gap-2 transition disabled:opacity-50"
+              className="w-full border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 rounded-2xl p-6 flex flex-col items-center gap-2 transition disabled:opacity-50"
             >
-              {uploading ? (
-                <><Loader className="w-8 h-8 animate-spin text-blue-500" /><span className="text-sm text-gray-500">Загрузка...</span></>
-              ) : (
-                <><Upload className="w-8 h-8 text-gray-400" /><span className="text-sm font-medium text-gray-600">Нажмите для загрузки фото</span><span className="text-xs text-gray-400">JPG, PNG, WebP · до 10 МБ каждое</span></>
-              )}
+              {uploading
+                ? <><Loader className="w-7 h-7 animate-spin text-gray-400" /><span className="text-sm text-gray-400">Загрузка...</span></>
+                : <><Upload className="w-7 h-7 text-gray-300" /><span className="text-sm font-medium text-gray-500 dark:text-gray-400">Нажмите для загрузки фото</span><span className="text-xs text-gray-400">JPG, PNG, WebP · до 10 МБ</span></>
+              }
             </button>
             {uploadedImages.length > 0 && (
               <div className="mt-3">
-                <p className="text-xs text-gray-500 mb-2">Нажмите ★ чтобы сделать обложкой:</p>
+                <p className="text-xs text-gray-400 mb-2">Нажмите звезду, чтобы выбрать обложку:</p>
                 <div className="grid grid-cols-4 gap-2">
                   {uploadedImages.map((url, i) => (
-                    <div key={i} className={`relative rounded-lg overflow-hidden border-2 ${i === coverIndex ? "border-blue-500" : "border-transparent"}`}>
+                    <div key={i} className={`relative rounded-xl overflow-hidden border-2 ${i === coverIndex ? 'border-brand-500' : 'border-transparent'}`}>
                       <img src={url} alt="" className="w-full h-20 object-cover" />
                       <div className="absolute inset-0 bg-black/20 flex items-start justify-between p-1">
-                        <button type="button" onClick={() => setCoverIndex(i)} title="Сделать обложкой">
-                          <Star className={`w-4 h-4 ${i === coverIndex ? "fill-yellow-400 text-yellow-400" : "text-white"}`} />
+                        <button type="button" onClick={() => setCoverIndex(i)}>
+                          <Star className={`w-4 h-4 ${i === coverIndex ? 'fill-yellow-400 text-yellow-400' : 'text-white'}`} />
                         </button>
                         <button type="button" onClick={() => removeImage(i)}>
                           <X className="w-4 h-4 text-white hover:text-red-300" />
                         </button>
                       </div>
-                      {i === coverIndex && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-blue-500 text-white text-xs text-center py-0.5">обложка</div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -604,92 +436,79 @@ const CreatePropertyPage: React.FC = () => {
             )}
           </div>
 
-          {/* Местоположение на карте */}
+          {/* Адрес и геопозиция */}
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">
-              <MapPin className="inline w-4 h-4 mr-1 text-blue-500" />
-              Местоположение на карте (необязательно)
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+              <MapPin className="inline w-4 h-4 mr-1 text-brand-500" />
+              Адрес объекта (необязательно)
             </label>
-            <p className="text-xs text-gray-500 mb-3">
-              Кликните по карте, чтобы указать точное расположение объекта. Казахстан по центру.
-            </p>
-            <div className="rounded-xl overflow-hidden border border-gray-200 mb-2" style={{ height: 320 }}>
-              <MapContainer
-                center={[48.0196, 66.9237]}
-                zoom={5}
-                style={{ height: '100%', width: '100%' }}
+            <div className="flex gap-2">
+              <input
+                type="text" name="address" value={form.address}
+                onChange={handleInputChange}
+                placeholder="Ул. Абая 10, Алматы"
+                className="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 transition dark:text-white"
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={handleGeocode}
+                disabled={geocoding || !form.address.trim()}
+                className="px-4 py-3 bg-gray-900 dark:bg-white hover:bg-gray-700 text-white dark:text-gray-900 rounded-2xl text-sm font-semibold transition disabled:opacity-40 flex items-center gap-2 flex-shrink-0"
               >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <LocationPicker
-                  onSelect={(lat, lng) =>
-                    setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }))
-                  }
-                />
-                {form.latitude !== null && form.longitude !== null && (
-                  <Marker position={[form.latitude, form.longitude]} />
-                )}
-              </MapContainer>
+                {geocoding ? <Loader className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+                <span className="hidden sm:inline">Найти</span>
+              </button>
             </div>
             {form.latitude !== null && form.longitude !== null ? (
-              <div className="flex items-center justify-between bg-blue-50 rounded-lg px-4 py-2 border border-blue-100">
-                <span className="text-sm text-blue-700 font-medium">
-                  📍 {form.latitude.toFixed(6)}, {form.longitude.toFixed(6)}
+              <div className="mt-2 flex items-center justify-between bg-green-50 dark:bg-green-900/20 rounded-xl px-4 py-2 border border-green-200 dark:border-green-800">
+                <span className="text-sm text-green-700 dark:text-green-400 font-medium">
+                  Координаты: {form.latitude.toFixed(5)}, {form.longitude.toFixed(5)}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, latitude: null, longitude: null }))}
+                  onClick={() => setForm(p => ({ ...p, latitude: null, longitude: null }))}
                   className="text-xs text-red-500 hover:text-red-700 transition"
                 >
                   Сбросить
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-gray-400 text-center">Метка не установлена</p>
+              <p className="mt-1.5 text-xs text-gray-400">Введите адрес и нажмите «Найти» для автоопределения координат</p>
             )}
           </div>
 
           {/* Кнопки */}
-          <div className="flex gap-4 pt-4">
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={() => navigate('/')}
               disabled={loading}
-              className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="flex-1 py-3.5 border border-gray-200 dark:border-gray-700 rounded-2xl font-semibold text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition"
             >
               Отмена
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+              className="flex-1 py-3.5 bg-gray-900 dark:bg-white hover:bg-gray-700 disabled:opacity-50 text-white dark:text-gray-900 rounded-2xl font-semibold text-sm transition flex items-center justify-center gap-2"
             >
-              {loading ? (
-                <>
-                  <Loader className="w-5 h-5 animate-spin" />
-                  Создание...
-                </>
-              ) : (
-                <>
-                  <span>✓</span>
-                  <span>Создать объект</span>
-                </>
-              )}
+              {loading
+                ? <><Loader className="w-4 h-4 animate-spin" />Создание...</>
+                : 'Создать объявление'
+              }
             </button>
           </div>
         </form>
 
-        {/* Информационный блок */}
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h3 className="font-semibold text-blue-900 mb-2">💡 Советы по заполнению</h3>
-          <ul className="text-blue-800 text-sm space-y-1">
-            <li>• Напишите подробное описание, чтобы привлечь больше гостей</li>
-            <li>• Добавьте несколько качественных фотографий вашего объекта</li>
-            <li>• Установите справедливую цену в соответствии с рынком</li>
-            <li>• Убедитесь, что ваша роль установлена на "Арендодатель" в профиле</li>
-            <li>• После создания объявление будет отправлено на модерацию и появится в поиске после одобрения</li>
+        {/* Tips */}
+        <div className="mt-6 p-5 bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-card">
+          <h3 className="font-semibold text-gray-800 dark:text-white mb-3 text-sm">Советы по заполнению</h3>
+          <ul className="text-gray-500 dark:text-gray-400 text-sm space-y-1.5">
+            <li>Напишите подробное описание — это привлечёт больше арендаторов</li>
+            <li>Добавьте качественные фотографии объекта</li>
+            <li>Установите справедливую цену в соответствии с рынком</li>
+            <li>После создания объявление будет отправлено на модерацию</li>
           </ul>
         </div>
       </div>

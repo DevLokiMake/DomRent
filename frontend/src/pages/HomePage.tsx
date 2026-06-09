@@ -107,13 +107,34 @@ const HomePage = () => {
   return (
     <div className="min-h-screen">
       {/* ── Hero ──────────────────────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-b from-gray-900 to-gray-800 text-white py-16 px-4">
-        <div className="max-w-4xl mx-auto text-center">
+      <div className="relative overflow-hidden text-white py-20 px-4" style={{
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)',
+      }}>
+        {/* Animated background blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full opacity-20"
+            style={{ background: 'radial-gradient(circle, #f43f5e, transparent)', animation: 'pulse 4s ease-in-out infinite' }} />
+          <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full opacity-15"
+            style={{ background: 'radial-gradient(circle, #6366f1, transparent)', animation: 'pulse 6s ease-in-out infinite reverse' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] opacity-10"
+            style={{ background: 'radial-gradient(ellipse, #f43f5e, transparent)', animation: 'pulse 8s ease-in-out infinite' }} />
+          {/* Grid pattern */}
+          <div className="absolute inset-0" style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
+            backgroundSize: '60px 60px',
+          }} />
+        </div>
+
+        <div className="relative max-w-4xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 backdrop-blur-sm rounded-full text-xs font-semibold text-gray-300 mb-6 border border-white/10">
+            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            Более 1000 объявлений по всему Казахстану
+          </div>
           <h1 className="text-4xl sm:text-5xl font-black mb-4 leading-tight">
             Найдите жильё своей мечты
           </h1>
-          <p className="text-gray-300 text-lg mb-10">
-            Тысячи объявлений об аренде и продаже в Казахстане
+          <p className="text-gray-400 text-lg mb-10">
+            Аренда и продажа недвижимости — быстро, удобно, надёжно
           </p>
 
           {/* Quick search bar */}
@@ -124,7 +145,7 @@ const HomePage = () => {
               disabled={citiesLoading}
               className="flex-1 px-4 py-3 text-gray-800 text-sm font-medium outline-none bg-transparent cursor-pointer"
             >
-              <option value="">📍 Все города</option>
+              <option value="">Все города</option>
               {cities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
             <div className="w-px bg-gray-100 my-1" />
@@ -169,7 +190,7 @@ const HomePage = () => {
                     : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
                 }`}
               >
-                {t === "квартира" ? "🏢" : t === "дом" ? "🏡" : "🛏️"} {t.charAt(0).toUpperCase() + t.slice(1)}
+                {t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
             ))}
           </div>
@@ -199,9 +220,9 @@ const HomePage = () => {
                 <select value={filters.type} onChange={e => setFilters(p => ({ ...p, type: e.target.value }))}
                   className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-900">
                   <option value="">Все</option>
-                  <option value="квартира">🏢 Квартира</option>
-                  <option value="дом">🏡 Дом</option>
-                  <option value="комната">🛏️ Комната</option>
+                  <option value="квартира">Квартира</option>
+                  <option value="дом">Дом</option>
+                  <option value="комната">Комната</option>
                 </select>
               </div>
               <div>
@@ -323,7 +344,7 @@ const HomePage = () => {
                     className="absolute top-3 right-3 w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
                   >
                     <Heart
-                      className={`w-4.5 h-4.5 transition-colors ${favorites.has(property.id) ? "fill-brand-500 text-brand-500" : "text-gray-500"}`}
+                      className={`transition-colors ${favorites.has(property.id) ? "fill-red-500 text-red-500" : "text-gray-400"}`}
                       style={{ width: 18, height: 18 }}
                     />
                   </button>

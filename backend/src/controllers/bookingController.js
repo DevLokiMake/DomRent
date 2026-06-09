@@ -178,7 +178,7 @@ export const createBooking = async (req, res) => {
       createNotification(
         booking.property.owner.id,
         'BOOKING_NEW',
-        '🏠 Новое бронирование',
+        'Новое бронирование',
         `${booking.user.name || booking.user.email} забронировал «${booking.property.title}»`,
         booking.id
       ),
@@ -186,7 +186,7 @@ export const createBooking = async (req, res) => {
       createNotification(
         req.user.id,
         'BOOKING_CONFIRMED',
-        '✅ Бронирование подтверждено',
+        'Бронирование подтверждено',
         `Ваша бронь «${booking.property.title}» успешно создана`,
         booking.id
       ),
