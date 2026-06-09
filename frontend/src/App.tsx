@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { Bell } from "lucide-react";
+import { Bell, Shield } from "lucide-react";
 import HomePage from "./pages/HomePage";
 import { RegisterPage } from './pages/RegisterPage';
 import LoginPage from "./pages/LoginPage";
@@ -9,6 +9,7 @@ import BookingsPage from "./pages/BookingsPage";
 import FavoritesPage from "./pages/FavoritesPage";
 import CreatePropertyPage from "./pages/CreatePropertyPage";
 import ChatPage from "./pages/ChatPage";
+import AdminPage from "./pages/AdminPage";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import axiosInstance from "./api/axios";
 
@@ -171,6 +172,11 @@ const Navbar = () => {
                 ➕ Добавить объект
               </Link>
             )}
+            {user.role === 'ADMIN' && (
+              <Link to="/admin" className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg font-medium transition">
+                <Shield className="w-4 h-4" />Админ
+              </Link>
+            )}
             <span className="text-gray-800 font-semibold">
               Привет, {user.name}!
             </span>
@@ -217,6 +223,7 @@ export default function App() {
               <Route path="/favorites" element={<FavoritesPage />} />
               <Route path="/create-property" element={<CreatePropertyPage />} />
               <Route path="/chat/:bookingId" element={<ChatPage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Routes>
           </main>
         </div>

@@ -67,14 +67,41 @@ export const createBooking = async (req, res) => {
       return res.status(404).json({ error: 'Объект не найден' });
     }
 
+    // Проверка: объект одобрен модерацией
+    if (property.status !== 'APPROVED') {
+      return res.status(400).json({
+        error: 'Этот объект ещё не прошёл модерацию и недоступен для бронирования'
+      });
+    }
+
     // Проверка на пересечение дат с существующими бронированиями
     const existingBookings = await prisma.booking.findMany({
-      where: { propertyId }
+      where: { propertyId, status: { in: ['UPCOMING', 'ACTIVE'] } }
     });
 
     if (hasDateConflict(startDate, endDate, existingBookings)) {
       return res.status(409).json({
         error: 'На выбранные даты уже есть бронирование. Выберите другие даты.'
+      });
+    }
+
+    // Проверка на ручные блокировки владельца
+    const newDates = [];
+    const cur = new Date(startDate);
+    cur.setUTCHours(0, 0, 0, 0);
+    const endNorm = new Date(endDate);
+    endNorm.setUTCHours(0, 0, 0, 0);
+    while (cur <= endNorm) {
+      newDates.push(new Date(cur));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+
+    const manualBlocked = await prisma.blockedDate.findFirst({
+      where: { propertyId, date: { in: newDates }, reason: 'manual' }
+    });
+    if (manualBlocked) {
+      return res.status(409).json({
+        error: 'Некоторые даты заблокированы владельцем. Выберите другие даты.'
       });
     }
 

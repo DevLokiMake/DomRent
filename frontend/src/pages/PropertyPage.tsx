@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { MapPin, Loader, AlertCircle, ArrowLeft, Heart, Star } from "lucide-react";
+import { MapPin, Loader, AlertCircle, ArrowLeft, Heart, Star, Wifi, Car, PawPrint, BedDouble, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import type { PropertyWithOwner, Booking } from "../types";
@@ -39,10 +39,12 @@ const PropertyPage = () => {
   const [checkingFavorite, setCheckingFavorite] = useState(false);
 
   // Состояния для бронирования
-  const [bookingData, setBookingData] = useState({
-    startDate: "",
-    endDate: "",
+  const [bookingData, setBookingData] = useState({ startDate: "", endDate: "" });
+  const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date(); d.setDate(1); return d;
   });
+  const [calendarStep, setCalendarStep] = useState<"start" | "end">("start");
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
 
@@ -223,6 +225,14 @@ const PropertyPage = () => {
     }).catch(() => {});
   }, [id]);
 
+  // Загрузка заблокированных дат
+  useEffect(() => {
+    if (!id) return;
+    axiosInstance.get(`/properties/${id}/blocked-dates`).then(res => {
+      setBlockedDates(new Set(res.data.blockedDates || []));
+    }).catch(() => {});
+  }, [id]);
+
   // Расчёт количества дней и итоговой цены
   const calculateDaysAndPrice = () => {
     if (!bookingData.startDate || !bookingData.endDate || !property || !property.price) {
@@ -241,6 +251,72 @@ const PropertyPage = () => {
   };
 
   const { days, totalPrice } = calculateDaysAndPrice();
+
+  // ─── Календарь ─────────────────────────────────────────────────────────────
+  const toISO = (d: Date) => d.toISOString().split("T")[0];
+  const today = toISO(new Date());
+
+  const calendarDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const offset = (firstDay + 6) % 7; // Mon-first
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < offset; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    return cells;
+  }, [calendarMonth]);
+
+  const isBlocked = (d: Date) => {
+    const iso = toISO(d);
+    if (iso < today) return true; // прошлое
+    return blockedDates.has(iso);
+  };
+
+  const isInRange = (d: Date) => {
+    if (!bookingData.startDate || !bookingData.endDate) return false;
+    const iso = toISO(d);
+    return iso > bookingData.startDate && iso < bookingData.endDate;
+  };
+
+  const handleCalendarClick = (d: Date) => {
+    const iso = toISO(d);
+    if (isBlocked(d)) return;
+
+    if (calendarStep === "start") {
+      setBookingData({ startDate: iso, endDate: "" });
+      setCalendarStep("end");
+    } else {
+      if (iso <= bookingData.startDate) {
+        // Если выбрали раньше — перевыбираем начало
+        setBookingData({ startDate: iso, endDate: "" });
+        return;
+      }
+      // Проверяем, нет ли заблокированных дат в диапазоне
+      const start = new Date(bookingData.startDate);
+      const end = new Date(iso);
+      let cur = new Date(start);
+      cur.setDate(cur.getDate() + 1);
+      let hasBlock = false;
+      while (cur < end) {
+        if (blockedDates.has(toISO(cur))) { hasBlock = true; break; }
+        cur.setDate(cur.getDate() + 1);
+      }
+      if (hasBlock) {
+        alert("В выбранном диапазоне есть занятые даты");
+        setBookingData({ startDate: iso, endDate: "" });
+        return;
+      }
+      setBookingData(prev => ({ ...prev, endDate: iso }));
+      setCalendarStep("start");
+    }
+  };
+
+  const prevMonth = () => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+  const nextMonth = () => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1));
+
+  const MONTHS_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 
   // Форматирование даты для отображения
   const formatDate = (dateString: string) => {
@@ -285,6 +361,25 @@ const PropertyPage = () => {
 
   const isOwner = user?.id === property.ownerId;
 
+  // Баннеры модерации
+  const ModerationBanner = () => {
+    if (!isOwner && user?.role !== "ADMIN") return null;
+    if (property.status === "APPROVED") return null;
+    const cfg = {
+      PENDING: { bg: "bg-yellow-50 border-yellow-300", icon: <Clock className="w-5 h-5 text-yellow-600" />, text: "Объявление находится на проверке администратором и не видно в поиске.", color: "text-yellow-800" },
+      REJECTED: { bg: "bg-red-50 border-red-300", icon: <XCircle className="w-5 h-5 text-red-600" />, text: `Объявление отклонено${property.rejectionReason ? `. Причина: ${property.rejectionReason}` : ""}`, color: "text-red-800" },
+    }[property.status as "PENDING" | "REJECTED"];
+    if (!cfg) return null;
+    return (
+      <div className={`container mx-auto px-4 mb-4`}>
+        <div className={`flex gap-3 items-start p-4 rounded-xl border ${cfg.bg}`}>
+          {cfg.icon}
+          <p className={`text-sm font-medium ${cfg.color}`}>{cfg.text}</p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header с кнопкой назад */}
@@ -298,6 +393,7 @@ const PropertyPage = () => {
         </button>
       </div>
 
+      <ModerationBanner />
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
           {/* Галерея фотографий */}
@@ -419,6 +515,39 @@ const PropertyPage = () => {
                     {property.description}
                   </p>
                 </div>
+
+                {/* Удобства */}
+                {(property.hasWifi || property.hasParking || property.petsAllowed || property.rooms) && (
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Удобства</h2>
+                    <div className="flex flex-wrap gap-3">
+                      {property.rooms && (
+                        <div className="flex items-center gap-2 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200">
+                          <BedDouble className="w-5 h-5 text-gray-600" />
+                          <span className="font-medium text-gray-800">{property.rooms} комнат</span>
+                        </div>
+                      )}
+                      {property.hasWifi && (
+                        <div className="flex items-center gap-2 bg-blue-50 px-4 py-3 rounded-xl border border-blue-100">
+                          <Wifi className="w-5 h-5 text-blue-600" />
+                          <span className="font-medium text-blue-800">Wi-Fi</span>
+                        </div>
+                      )}
+                      {property.hasParking && (
+                        <div className="flex items-center gap-2 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200">
+                          <Car className="w-5 h-5 text-gray-600" />
+                          <span className="font-medium text-gray-800">Парковка</span>
+                        </div>
+                      )}
+                      {property.petsAllowed && (
+                        <div className="flex items-center gap-2 bg-green-50 px-4 py-3 rounded-xl border border-green-100">
+                          <PawPrint className="w-5 h-5 text-green-600" />
+                          <span className="font-medium text-green-800">Можно с животными</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Карта расположения */}
                 {property.latitude != null && property.longitude != null && (
@@ -564,40 +693,69 @@ const PropertyPage = () => {
                     </h3>
 
                     <form onSubmit={handleBooking} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Дата заезда
-                        </label>
-                        <input
-                          type="date"
-                          value={bookingData.startDate}
-                          onChange={(e) =>
-                            setBookingData({
-                              ...bookingData,
-                              startDate: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Дата выезда
-                        </label>
-                        <input
-                          type="date"
-                          value={bookingData.endDate}
-                          onChange={(e) =>
-                            setBookingData({
-                              ...bookingData,
-                              endDate: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                          required
-                        />
+                      {/* Интерактивный календарь */}
+                      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        {/* Заголовок календаря */}
+                        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+                          <button type="button" onClick={prevMonth} className="p-1 hover:bg-gray-200 rounded-lg transition">
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <span className="font-semibold text-sm text-gray-800">
+                            {MONTHS_RU[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
+                          </span>
+                          <button type="button" onClick={nextMonth} className="p-1 hover:bg-gray-200 rounded-lg transition">
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {/* Дни недели */}
+                        <div className="grid grid-cols-7 border-b border-gray-100">
+                          {["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(d => (
+                            <div key={d} className="text-center text-xs font-semibold text-gray-500 py-2">{d}</div>
+                          ))}
+                        </div>
+                        {/* Ячейки дней */}
+                        <div className="grid grid-cols-7 p-2 gap-0.5">
+                          {calendarDays.map((d, i) => {
+                            if (!d) return <div key={i} />;
+                            const iso = toISO(d);
+                            const blocked = isBlocked(d);
+                            const isStart = iso === bookingData.startDate;
+                            const isEnd = iso === bookingData.endDate;
+                            const inRange = isInRange(d);
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => handleCalendarClick(d)}
+                                disabled={blocked}
+                                title={blocked ? "Дата недоступна" : undefined}
+                                className={`
+                                  w-full aspect-square flex items-center justify-center text-xs font-medium rounded-lg transition
+                                  ${blocked ? "text-gray-300 cursor-not-allowed bg-gray-50 line-through" : "cursor-pointer hover:bg-blue-100"}
+                                  ${isStart || isEnd ? "bg-blue-600 text-white hover:bg-blue-700 rounded-lg" : ""}
+                                  ${inRange ? "bg-blue-100 text-blue-700 rounded-none" : ""}
+                                `}
+                              >
+                                {d.getDate()}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {/* Подсказка */}
+                        <div className="px-4 pb-3 text-xs text-gray-500 flex items-center gap-3">
+                          <span className={`font-medium ${calendarStep === "start" ? "text-blue-600" : "text-gray-400"}`}>
+                            {calendarStep === "start" ? "▶ Выберите заезд" : "✓ Заезд: " + (bookingData.startDate ? new Date(bookingData.startDate + "T00:00:00").toLocaleDateString("ru-RU") : "—")}
+                          </span>
+                          <span className={`font-medium ${calendarStep === "end" ? "text-blue-600" : "text-gray-400"}`}>
+                            {calendarStep === "end" ? "▶ Выберите выезд" : "✓ Выезд: " + (bookingData.endDate ? new Date(bookingData.endDate + "T00:00:00").toLocaleDateString("ru-RU") : "—")}
+                          </span>
+                        </div>
+                        {/* Легенда */}
+                        <div className="px-4 pb-3 flex gap-3 flex-wrap text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-600 rounded-sm inline-block" />Выбрано</span>
+                          <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-100 rounded-sm inline-block" />Диапазон</span>
+                          <span className="flex items-center gap-1"><span className="w-3 h-3 bg-gray-100 rounded-sm inline-block border" />Недоступно</span>
+                        </div>
                       </div>
 
                       {/* Расчёт стоимости */}

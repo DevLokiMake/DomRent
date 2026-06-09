@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from "../api/axios";
-import { AlertCircle, CheckCircle, Loader, Plus, MapPin, Upload, X, Star } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader, Plus, MapPin, Upload, X, Star, Wifi, Car, PawPrint, BedDouble } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import markerIconPng from 'leaflet/dist/images/marker-icon.png';
@@ -47,6 +47,10 @@ interface CreatePropertyForm {
   type: 'квартира' | 'дом' | 'комната';
   contractType: 'RENT' | 'SALE';
   price: string;
+  rooms: string;
+  hasWifi: boolean;
+  hasParking: boolean;
+  petsAllowed: boolean;
   latitude: number | null;
   longitude: number | null;
 }
@@ -73,6 +77,10 @@ const CreatePropertyPage: React.FC = () => {
     type: 'квартира',
     contractType: 'RENT',
     price: '',
+    rooms: '',
+    hasWifi: false,
+    hasParking: false,
+    petsAllowed: false,
     latitude: null,
     longitude: null,
   });
@@ -235,6 +243,10 @@ const CreatePropertyPage: React.FC = () => {
         coverImage,
         latitude: form.latitude,
         longitude: form.longitude,
+        rooms: form.rooms ? parseInt(form.rooms) : null,
+        hasWifi: form.hasWifi,
+        hasParking: form.hasParking,
+        petsAllowed: form.petsAllowed,
       };
 
       await axiosInstance.post('/properties', payload);
@@ -499,6 +511,49 @@ const CreatePropertyPage: React.FC = () => {
               )}
             </div>
 
+          {/* Количество комнат */}
+          <div>
+            <label htmlFor="rooms" className="block text-sm font-medium text-gray-900 mb-2">
+              <BedDouble className="inline w-4 h-4 mr-1 text-gray-500" />
+              Количество комнат
+            </label>
+            <select
+              id="rooms"
+              value={form.rooms}
+              onChange={e => setForm(p => ({ ...p, rooms: e.target.value }))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+              disabled={loading}
+            >
+              <option value="">Не указано</option>
+              {[1,2,3,4,5].map(n => <option key={n} value={String(n)}>{n} {n === 5 ? "+" : ""} комн.</option>)}
+            </select>
+          </div>
+
+          {/* Удобства */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-3">Удобства</label>
+            <div className="flex flex-wrap gap-3">
+              {([
+                { key: 'hasWifi',     label: 'Wi-Fi',    icon: <Wifi className="w-4 h-4" />     },
+                { key: 'hasParking',  label: 'Парковка', icon: <Car className="w-4 h-4" />       },
+                { key: 'petsAllowed', label: 'Животные', icon: <PawPrint className="w-4 h-4" /> },
+              ] as { key: 'hasWifi' | 'hasParking' | 'petsAllowed'; label: string; icon: React.ReactNode }[]).map(({ key, label, icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, [key]: !p[key] }))}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition ${
+                    form[key]
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'
+                  }`}
+                >
+                  {icon}{label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Фотографии */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">
@@ -634,6 +689,7 @@ const CreatePropertyPage: React.FC = () => {
             <li>• Добавьте несколько качественных фотографий вашего объекта</li>
             <li>• Установите справедливую цену в соответствии с рынком</li>
             <li>• Убедитесь, что ваша роль установлена на "Арендодатель" в профиле</li>
+            <li>• После создания объявление будет отправлено на модерацию и появится в поиске после одобрения</li>
           </ul>
         </div>
       </div>

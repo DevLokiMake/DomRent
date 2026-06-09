@@ -16,7 +16,10 @@ export const createProperty = async (req, res) => {
       });
     }
 
-    const { title, description, price, type, contractType, city, images, latitude, longitude } = req.body;
+    const {
+      title, description, price, type, contractType, city, images, coverImage,
+      latitude, longitude, rooms, hasWifi, hasParking, petsAllowed
+    } = req.body;
 
     // Логика: если города нет, создать его
     let cityRecord = await prisma.city.findUnique({
@@ -29,7 +32,7 @@ export const createProperty = async (req, res) => {
       });
     }
 
-    // Создание объекта
+    // Создание объекта (статус PENDING — ждёт модерации)
     const property = await prisma.property.create({
       data: {
         title,
@@ -38,9 +41,15 @@ export const createProperty = async (req, res) => {
         type,
         contractType,
         cityId: cityRecord.id,
-        images,
+        images: images || [],
+        coverImage: coverImage ?? null,
         latitude: latitude ?? null,
         longitude: longitude ?? null,
+        rooms: rooms ? parseInt(rooms) : null,
+        hasWifi: hasWifi ?? false,
+        hasParking: hasParking ?? false,
+        petsAllowed: petsAllowed ?? false,
+        status: 'PENDING',
         ownerId: req.user.id
       },
       include: {
@@ -74,77 +83,55 @@ export const createProperty = async (req, res) => {
  */
 export const getAllProperties = async (req, res) => {
   try {
-    const { cityId, city, minPrice, maxPrice, type, contractType } = req.query;
+    const {
+      cityId, city, minPrice, maxPrice, type, contractType,
+      rooms, hasWifi, hasParking, petsAllowed
+    } = req.query;
 
-    // Построение условий фильтрации
-    const where = {};
+    // В публичном поиске показываем только APPROVED объекты
+    const where = { status: 'APPROVED' };
 
-    // Фильтрация по городу (по имени или ID)
+    // Фильтрация по городу
     if (cityId) {
       where.cityId = parseInt(cityId);
     } else if (city) {
-      // Найдём city ID по названию
-      const cityRecord = await prisma.city.findUnique({
-        where: { name: city }
-      });
+      const cityRecord = await prisma.city.findUnique({ where: { name: city } });
       if (cityRecord) {
         where.cityId = cityRecord.id;
       } else {
-        // Если города нет, вернём пустой результат
-        return res.json({
-          count: 0,
-          properties: []
-        });
+        return res.json({ count: 0, properties: [] });
       }
     }
 
-    if (type) {
-      where.type = type;
-    }
+    if (type) where.type = type;
+    if (contractType) where.contractType = contractType;
 
-    if (contractType) {
-      where.contractType = contractType;
-    }
-
+    // Диапазон цен
     if (minPrice || maxPrice) {
       where.price = {};
-      if (minPrice) {
-        where.price.gte = parseFloat(minPrice);
-      }
-      if (maxPrice) {
-        where.price.lte = parseFloat(maxPrice);
-      }
+      if (minPrice) where.price.gte = parseFloat(minPrice);
+      if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
-    // Получение объектов
+    // Количество комнат
+    if (rooms) where.rooms = parseInt(rooms);
+
+    // Булевы фильтры (удобства)
+    if (hasWifi === 'true') where.hasWifi = true;
+    if (hasParking === 'true') where.hasParking = true;
+    if (petsAllowed === 'true') where.petsAllowed = true;
+
     const properties = await prisma.property.findMany({
       where,
       include: {
-        owner: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            phone: true
-          }
-        },
+        owner: { select: { id: true, email: true, name: true, phone: true } },
         city: true,
-        _count: {
-          select: {
-            bookings: true,
-            favorites: true
-          }
-        }
+        _count: { select: { bookings: true, favorites: true } }
       },
-      orderBy: {
-        createdAt: 'desc'
-      }
+      orderBy: { createdAt: 'desc' }
     });
 
-    res.json({
-      count: properties.length,
-      properties
-    });
+    res.json({ count: properties.length, properties });
   } catch (error) {
     console.error('Get all properties error:', error);
     res.status(500).json({ error: 'Ошибка при получении объектов' });
@@ -200,6 +187,14 @@ export const getPropertyById = async (req, res) => {
     });
 
     if (!property) {
+      return res.status(404).json({ error: 'Объект не найден' });
+    }
+
+    // Не показывать PENDING/REJECTED чужим пользователям
+    const requestUserId = req.user?.id;
+    const isOwner = property.ownerId === requestUserId;
+    const isAdmin = req.user?.role === 'ADMIN';
+    if (property.status !== 'APPROVED' && !isOwner && !isAdmin) {
       return res.status(404).json({ error: 'Объект не найден' });
     }
 

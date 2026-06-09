@@ -4,6 +4,8 @@ export interface City {
   createdAt?: string;
 }
 
+export type ModerationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export interface Property {
   id: number;
   title: string;
@@ -12,11 +14,19 @@ export interface Property {
   cityId?: number;
   city?: City | string;
   images: string[];
+  coverImage?: string | null;
   type: 'квартира' | 'дом' | 'комната';
   contractType?: 'RENT' | 'SALE';
   ownerId: number;
   latitude?: number | null;
   longitude?: number | null;
+  // Новые поля
+  rooms?: number | null;
+  hasWifi?: boolean;
+  hasParking?: boolean;
+  petsAllowed?: boolean;
+  status?: ModerationStatus;
+  rejectionReason?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -37,7 +47,8 @@ export interface User {
   email: string;
   name: string | null;
   phone: string | null;
-  role: 'USER' | 'LANDLORD';
+  role: 'USER' | 'LANDLORD' | 'ADMIN';
+  isBanned?: boolean;
   telegramId: string | null;
 }
 
@@ -52,6 +63,7 @@ export interface Booking {
   startDate: string;
   endDate: string;
   totalPrice: number;
+  status?: 'UPCOMING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
   userId: number;
   propertyId: number;
   createdAt: string;

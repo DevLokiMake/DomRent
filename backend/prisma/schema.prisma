@@ -12,6 +12,7 @@ datasource db {
 enum Role {
   USER
   LANDLORD
+  ADMIN
 }
 
 enum ContractType {
@@ -24,6 +25,12 @@ enum BookingStatus {
   ACTIVE      // Идёт прямо сейчас
   COMPLETED   // Завершено
   CANCELLED   // Отменено
+}
+
+enum ModerationStatus {
+  PENDING    // На проверке (не видно в поиске)
+  APPROVED   // Одобрено
+  REJECTED   // Отклонено (с причиной)
 }
 
 model City {
@@ -39,8 +46,9 @@ model User {
   password   String
   name       String?
   phone      String?
-  telegramId String? 
+  telegramId String?
   role       Role       @default(USER)
+  isBanned   Boolean    @default(false)
   properties    Property[]
   bookings      Booking[]
   favorites     Favorite[]
@@ -51,27 +59,47 @@ model User {
 }
 
 model Property {
-  id           Int          @id @default(autoincrement())
-  title        String
-  description  String
-  price        Float
-  type         String       // квартира, дом, комната
-  contractType ContractType @default(RENT) // RENT или SALE
-  cityId       Int
-  city         City         @relation(fields: [cityId], references: [id])
-  images       String[]     // Массив ссылок на фото (до 20 штук)
-  coverImage   String?      // Главное фото (URL из массива images)
-  latitude     Float?       // Широта (DECIMAL-9,6 precision хранится как Float в Prisma)
-  longitude    Float?       // Долгота
-  ownerId      Int
-  owner        User         @relation(fields: [ownerId], references: [id])
-  bookings     Booking[]
-  favorites    Favorite[]
-  reviews      Review[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              Int              @id @default(autoincrement())
+  title           String
+  description     String
+  price           Float
+  type            String           // квартира, дом, комната
+  contractType    ContractType     @default(RENT)
+  rooms           Int?             // Количество комнат
+  hasWifi         Boolean          @default(false)
+  hasParking      Boolean          @default(false)
+  petsAllowed     Boolean          @default(false)
+  status          ModerationStatus @default(PENDING)
+  rejectionReason String?          // Причина отклонения от админа
+  cityId          Int
+  city            City             @relation(fields: [cityId], references: [id])
+  images          String[]
+  coverImage      String?
+  latitude        Float?
+  longitude       Float?
+  ownerId         Int
+  owner           User             @relation(fields: [ownerId], references: [id])
+  bookings        Booking[]
+  favorites       Favorite[]
+  reviews         Review[]
+  blockedDates    BlockedDate[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([latitude, longitude])
+  @@index([status])
+}
+
+model BlockedDate {
+  id         Int      @id @default(autoincrement())
+  propertyId Int
+  date       DateTime @db.Date  // Только дата без времени
+  reason     String?            // "booking" | "manual" | custom text
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([propertyId, date])
+  @@index([propertyId])
 }
 
 model Booking {
@@ -109,7 +137,7 @@ model Review {
   text       String
   authorId   Int
   propertyId Int
-  bookingId  Int      @unique  // Один отзыв на одно бронирование
+  bookingId  Int      @unique
   author     User     @relation("ReviewAuthor", fields: [authorId], references: [id])
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -143,7 +171,7 @@ model Notification {
   title     String
   body      String
   isRead    Boolean          @default(false)
-  entityId  Int?             // ID связанного объекта (booking, message и т.д.)
+  entityId  Int?
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime         @default(now())
 
@@ -151,9 +179,11 @@ model Notification {
 }
 
 enum NotificationType {
-  BOOKING_NEW        // Новое бронирование (для арендодателя)
-  BOOKING_CONFIRMED  // Бронирование подтверждено
-  BOOKING_CANCELLED  // Бронирование отменено
-  MESSAGE_NEW        // Новое сообщение в чате
-  REVIEW_NEW         // Новый отзыв
+  BOOKING_NEW
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  MESSAGE_NEW
+  REVIEW_NEW
+  PROPERTY_APPROVED
+  PROPERTY_REJECTED
 }

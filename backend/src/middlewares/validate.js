@@ -10,7 +10,7 @@ export const registerSchema = z.object({
   password: z.string().min(6, 'Пароль должен быть минимум 6 символов'),
   name: z.string().min(1, 'Имя обязательно').optional(),
   phone: z.string().optional(),
-  role: z.enum(['USER', 'LANDLORD']).optional()
+  role: z.enum(['USER', 'LANDLORD', 'ADMIN']).optional()
 });
 
 // Вход пользователя
@@ -24,16 +24,22 @@ export const propertySchema = z.object({
   title: z.string().min(1, 'Название объекта обязательно'),
   description: z.string().min(1, 'Описание обязательно'),
   price: z.number().positive('Цена должна быть положительной'),
-  type: z.enum(['квартира', 'дом', 'комната'], { 
-    errorMap: () => ({ message: 'Тип должен быть: квартира, дом или комната' }) 
+  type: z.enum(['квартира', 'дом', 'комната'], {
+    errorMap: () => ({ message: 'Тип должен быть: квартира, дом или комната' })
   }),
   contractType: z.enum(['RENT', 'SALE'], {
     errorMap: () => ({ message: 'Тип сделки должен быть RENT (Аренда) или SALE (Продажа)' })
   }),
   city: z.string().min(1, 'Город обязателен'),
-  images: z.array(z.string().url('Некорректный URL изображения')).optional().default([]),
+  images: z.array(z.string()).optional().default([]),
+  coverImage: z.string().nullable().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
-  longitude: z.number().min(-180).max(180).nullable().optional()
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  // Новые поля
+  rooms: z.number().int().min(1).max(20).nullable().optional(),
+  hasWifi: z.boolean().optional().default(false),
+  hasParking: z.boolean().optional().default(false),
+  petsAllowed: z.boolean().optional().default(false),
 });
 
 // Обновление объекта недвижимости

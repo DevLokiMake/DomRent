@@ -31,6 +31,13 @@ export const authenticateToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Недействительный токен.' });
     }
 
+    // Проверка: заблокирован ли аккаунт
+    if (user.isBanned) {
+      return res.status(403).json({
+        error: 'Ваш аккаунт заблокирован администратором. Обратитесь в поддержку.'
+      });
+    }
+
     // Добавление пользователя в request объект
     req.user = user;
     next();

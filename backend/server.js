@@ -12,6 +12,7 @@ import reviewRoutes from './src/routes/review.js';
 import messageRoutes from './src/routes/message.js';
 import notificationRoutes from './src/routes/notification.js';
 import uploadRoutes from './src/routes/upload.js';
+import adminRoutes from './src/routes/admin.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
