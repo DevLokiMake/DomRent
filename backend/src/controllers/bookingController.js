@@ -80,10 +80,12 @@ export const createBooking = async (req, res) => {
           select: {
             id: true,
             title: true,
-            city: true,
             price: true,
             type: true,
             images: true,
+            city: {
+              select: { id: true, name: true }
+            },
             owner: {
               select: {
                 id: true,
@@ -151,10 +153,13 @@ export const getUserBookings = async (req, res) => {
             id: true,
             title: true,
             description: true,
-            city: true,
             price: true,
             type: true,
+            contractType: true,
             images: true,
+            city: {
+              select: { id: true, name: true }
+            },
             owner: {
               select: {
                 id: true,
@@ -264,9 +269,13 @@ export const getOwnerBookings = async (req, res) => {
           select: {
             id: true,
             title: true,
-            city: true,
+            description: true,
             price: true,
-            images: true
+            type: true,
+            images: true,
+            city: {
+              select: { id: true, name: true }
+            }
           }
         },
         user: {

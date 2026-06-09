@@ -31,7 +31,9 @@ export const propertySchema = z.object({
     errorMap: () => ({ message: 'Тип сделки должен быть RENT (Аренда) или SALE (Продажа)' })
   }),
   city: z.string().min(1, 'Город обязателен'),
-  images: z.array(z.string().url('Некорректный URL изображения')).optional().default([])
+  images: z.array(z.string().url('Некорректный URL изображения')).optional().default([]),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional()
 });
 
 // Обновление объекта недвижимости
@@ -74,13 +76,17 @@ export const validate = (schema) => {
   return (req, res, next) => {
     try {
       const parsed = schema.safeParse(req.body);
-      
+
+      // В некоторых роутингах body может приходить undefined.
+      // safeParse для Zod вернет success=false, но путь (err.path) будет пустым,
+      // из-за чего клиенту сложнее понять ошибку.
       if (!parsed.success) {
-        const errors = parsed.error.errors.map(err => ({
-          path: err.path.join('.'),
+        const issues = parsed.error?.issues ?? parsed.error?.errors ?? [];
+        const errors = issues.map(err => ({
+          path: Array.isArray(err.path) ? err.path.join('.') : String(err.path),
           message: err.message
         }));
-        
+
         return res.status(400).json({
           error: 'Ошибка валидации',
           details: errors
@@ -108,11 +114,12 @@ export const validateQuery = (schema) => {
       const parsed = schema.safeParse(req.query);
       
       if (!parsed.success) {
-        const errors = parsed.error.errors.map(err => ({
-          path: err.path.join('.'),
+        const issues = parsed.error?.issues ?? parsed.error?.errors ?? [];
+        const errors = issues.map(err => ({
+          path: Array.isArray(err.path) ? err.path.join('.') : String(err.path),
           message: err.message
         }));
-        
+
         return res.status(400).json({
           error: 'Ошибка валидации параметров',
           details: errors

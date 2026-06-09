@@ -16,7 +16,7 @@ export const createProperty = async (req, res) => {
       });
     }
 
-    const { title, description, price, type, contractType, city, images } = req.body;
+    const { title, description, price, type, contractType, city, images, latitude, longitude } = req.body;
 
     // Логика: если города нет, создать его
     let cityRecord = await prisma.city.findUnique({
@@ -39,6 +39,8 @@ export const createProperty = async (req, res) => {
         contractType,
         cityId: cityRecord.id,
         images,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
         ownerId: req.user.id
       },
       include: {
@@ -343,5 +345,67 @@ export const updateProperty = async (req, res) => {
   } catch (error) {
     console.error('Update property error:', error);
     res.status(500).json({ error: 'Ошибка при обновлении объекта' });
+  }
+};
+
+/**
+ * Формула Haversine — расстояние между двумя точками на сфере (км)
+ */
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+/**
+ * GET /api/properties/nearby?lat=...&lng=...&radius=10
+ * Возвращает объекты в радиусе (км) от точки, отсортированные по расстоянию
+ */
+export const getNearbyProperties = async (req, res) => {
+  try {
+    const { lat, lng, radius = '10' } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'Параметры lat и lng обязательны' });
+    }
+
+    const centerLat = parseFloat(lat);
+    const centerLng = parseFloat(lng);
+    const radiusKm = parseFloat(radius);
+
+    if ([centerLat, centerLng, radiusKm].some(isNaN)) {
+      return res.status(400).json({ error: 'Некорректные числовые параметры' });
+    }
+
+    const allProperties = await prisma.property.findMany({
+      where: {
+        latitude: { not: null },
+        longitude: { not: null }
+      },
+      include: {
+        owner: { select: { id: true, email: true, name: true, phone: true } },
+        city: true,
+        _count: { select: { bookings: true, favorites: true } }
+      }
+    });
+
+    const nearby = allProperties
+      .map(p => ({
+        ...p,
+        distance: Math.round(haversineKm(centerLat, centerLng, p.latitude, p.longitude) * 10) / 10
+      }))
+      .filter(p => p.distance <= radiusKm)
+      .sort((a, b) => a.distance - b.distance);
+
+    res.json({ count: nearby.length, properties: nearby });
+  } catch (error) {
+    console.error('Get nearby properties error:', error);
+    res.status(500).json({ error: 'Ошибка при поиске объектов рядом' });
   }
 };

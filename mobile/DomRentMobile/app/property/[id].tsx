@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, ScrollView, View, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import PropertyMap from '@/components/PropertyMap';
 import { ChevronLeft, Share2 } from 'lucide-react-native';
 
 import { ThemedView } from '@/components/themed-view';
@@ -101,6 +102,16 @@ export default function PropertyDetailScreen() {
 
         {/* Description & Owner */}
         <PropertyOwnerInfo description={property.description} owner={property.owner} />
+
+        {/* Карта расположения */}
+        {property.latitude != null && property.longitude != null && (
+          <PropertyMap
+            latitude={property.latitude}
+            longitude={property.longitude}
+            title={property.title}
+            city={typeof property.city === 'object' ? property.city?.name : property.city}
+          />
+        )}
 
         {/* Booking Form */}
         <BookingForm

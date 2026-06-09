@@ -15,6 +15,8 @@ export interface Property {
   type: 'квартира' | 'дом' | 'комната';
   contractType?: 'RENT' | 'SALE';
   ownerId: number;
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

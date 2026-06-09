@@ -4,6 +4,22 @@ import { MapPin, Loader, AlertCircle, ArrowLeft, Heart } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import type { PropertyWithOwner, Booking } from "../types";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import markerIconPng from "leaflet/dist/images/marker-icon.png";
+import markerIcon2xPng from "leaflet/dist/images/marker-icon-2x.png";
+import markerShadowPng from "leaflet/dist/images/marker-shadow.png";
+
+const defaultIcon = L.icon({
+  iconUrl: markerIconPng,
+  iconRetinaUrl: markerIcon2xPng,
+  shadowUrl: markerShadowPng,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+L.Marker.prototype.options.icon = defaultIcon;
 
 const PropertyPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -44,7 +60,7 @@ const PropertyPage = () => {
         setError(null);
         const res = await axiosInstance.get(`/properties/${id}`);
         if (!ignore) {
-          setProperty(res.data);
+          setProperty(res.data.property ?? res.data);
         }
       } catch (err: unknown) {
         if (!ignore) {
@@ -107,9 +123,9 @@ const PropertyPage = () => {
       try {
         setBookingsLoading(true);
         const res = await axiosInstance.get(`/properties/${id}`);
-        // Предполагаем, что бэкенд возвращает бронирования в поле bookings
-        if (!ignore && res.data?.bookings) {
-          setBookings(res.data.bookings);
+        if (!ignore) {
+          const bookingsData = res.data?.property?.bookings ?? res.data?.bookings ?? [];
+          setBookings(bookingsData);
         }
       } catch (err) {
         console.error("Failed to fetch bookings:", err);
@@ -176,7 +192,7 @@ const PropertyPage = () => {
 
     try {
       await axiosInstance.post("/bookings", {
-        propertyId: id,
+        propertyId: parseInt(id!),
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
       });
@@ -369,7 +385,11 @@ const PropertyPage = () => {
                   </h1>
                   <div className="flex items-center text-gray-600 mb-4">
                     <MapPin className="w-5 h-5 mr-2 text-blue-500" />
-                    <span className="text-lg">{property.city}</span>
+                    <span className="text-lg">
+                      {typeof property.city === "object" && property.city !== null
+                        ? (property.city as { name: string }).name
+                        : property.city}
+                    </span>
                   </div>
                   <div className="text-4xl font-black text-blue-600 mb-4">
                     {property.price ? property.price.toLocaleString() : "0"} <span className="text-2xl">₸/ночь</span>
@@ -385,6 +405,37 @@ const PropertyPage = () => {
                     {property.description}
                   </p>
                 </div>
+
+                {/* Карта расположения */}
+                {property.latitude != null && property.longitude != null && (
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <MapPin className="w-6 h-6 text-blue-500" />
+                      Расположение
+                    </h2>
+                    <div className="rounded-2xl overflow-hidden border border-gray-200" style={{ height: 300 }}>
+                      <MapContainer
+                        center={[property.latitude!, property.longitude!]}
+                        zoom={14}
+                        style={{ height: "100%", width: "100%" }}
+                        scrollWheelZoom={false}
+                      >
+                        <TileLayer
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        <Marker position={[property.latitude!, property.longitude!]}>
+                          <Popup>
+                            <strong>{property.title}</strong><br />
+                            {typeof property.city === "object" && property.city !== null
+                              ? (property.city as { name: string }).name
+                              : property.city}
+                          </Popup>
+                        </Marker>
+                      </MapContainer>
+                    </div>
+                  </div>
+                )}
 
                 {/* Информация о владельце */}
                 {property.owner && (
