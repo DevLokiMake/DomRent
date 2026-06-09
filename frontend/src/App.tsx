@@ -159,8 +159,8 @@ const NotificationsBell = () => {
   };
 
   const TYPE_ICON: Record<string, string> = {
-    BOOKING_NEW: "📅", BOOKING_CONFIRMED: "✅", BOOKING_CANCELLED: "❌",
-    MESSAGE_NEW: "💬", REVIEW_NEW: "⭐", PROPERTY_APPROVED: "✅", PROPERTY_REJECTED: "❌",
+    BOOKING_NEW: "Бронь", BOOKING_CONFIRMED: "OK", BOOKING_CANCELLED: "Отмена",
+    MESSAGE_NEW: "Чат", REVIEW_NEW: "Отзыв", PROPERTY_APPROVED: "OK", PROPERTY_REJECTED: "Отказ",
   };
 
   return (
@@ -202,7 +202,7 @@ const NotificationsBell = () => {
                       : "hover:bg-gray-50 dark:hover:bg-gray-800"
                   }`}
                 >
-                  <span className="text-lg flex-shrink-0 mt-0.5">{TYPE_ICON[n.type] || "🔔"}</span>
+                  <span className="text-xs font-bold flex-shrink-0 mt-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">{TYPE_ICON[n.type] || "—"}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{n.title}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.body}</p>
@@ -304,7 +304,7 @@ const Navbar = () => {
                 {user.role === 'LANDLORD' && (
                   <Link
                     to="/create-property"
-                    className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-gray-900 dark:bg-white hover:bg-gray-700 dark:hover:bg-gray-100 text-white dark:text-gray-900 text-sm font-semibold rounded-xl transition-colors"
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-gray-900 dark:bg-brand-500 hover:bg-gray-700 dark:hover:bg-brand-600 text-white text-sm font-semibold rounded-xl transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                     <span className="hidden lg:inline">{t('nav.createListing')}</span>

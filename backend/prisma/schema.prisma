@@ -135,18 +135,19 @@ model Favorite {
 
 model Review {
   id         Int      @id @default(autoincrement())
-  rating     Int      // 1–5 звёзд
+  rating     Int
   text       String
+  anonymous  Boolean  @default(false)
   authorId   Int
   propertyId Int
-  bookingId  Int      @unique
+  bookingId  Int?     @unique
   author     User     @relation("ReviewAuthor", fields: [authorId], references: [id])
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking    Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
-  @@unique([authorId, bookingId])
   @@index([propertyId])
+  @@index([authorId])
 }
 
 // ─── Чат ────────────────────────────────────────────────────────────────────

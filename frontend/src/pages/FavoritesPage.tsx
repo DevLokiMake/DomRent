@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Heart, Loader, AlertCircle, MapPin } from "lucide-react";
+import { Heart, Loader, AlertCircle, MapPin, X } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import type { Property } from "../types";
@@ -18,157 +18,104 @@ const FavoritesPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
 
-  // Загрузка избранного
   useEffect(() => {
     let ignore = false;
+    if (!user) { setLoading(false); return; }
 
-    const fetchFavorites = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await axiosInstance.get("/favorites");
-        if (!ignore) {
-          setFavorites(res.data.favorites || []);
-        }
-      } catch (err: unknown) {
-        if (!ignore) {
-          const message =
-            err instanceof Error ? err.message : "Не удалось загрузить избранное";
-          setError(message);
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
-    };
+    setLoading(true);
+    setError(null);
+    axiosInstance.get("/favorites")
+      .then(res => { if (!ignore) setFavorites(res.data.favorites || []); })
+      .catch(err => { if (!ignore) setError(err instanceof Error ? err.message : "Не удалось загрузить"); })
+      .finally(() => { if (!ignore) setLoading(false); });
 
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    fetchFavorites();
-
-    return () => {
-      ignore = true;
-    };
+    return () => { ignore = true; };
   }, [user]);
 
-  // Обработчик удаления из избранного с оптимистичным обновлением
-  const handleRemoveFavorite = async (propertyId: number) => {
-    // Оптимистичное обновление - сразу удаляем из UI
-    setFavorites(favorites.filter(p => p.id !== propertyId));
+  const handleRemoveFavorite = async (propertyId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFavorites(prev => prev.filter(p => p.id !== propertyId));
     setRemovingIds(prev => new Set(prev).add(propertyId));
-
     try {
-      // В фоне отправляем запрос на бэкенд
       await axiosInstance.post(`/favorites/toggle/${propertyId}`);
-    } catch (err: unknown) {
-      // Если ошибка, возвращаем обратно
+    } catch {
       const property = favorites.find(p => p.id === propertyId);
-      if (property) {
-        setFavorites(prev => [...prev, property]);
-      }
-
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Ошибка при удалении из избранного";
-      alert(message);
+      if (property) setFavorites(prev => [...prev, property]);
     } finally {
-      setRemovingIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(propertyId);
-        return newSet;
-      });
+      setRemovingIds(prev => { const s = new Set(prev); s.delete(propertyId); return s; });
     }
   };
 
-  // Получить текст цены в зависимости от типа сделки
-  const getPriceText = (property: Property) => {
-    if (property.contractType === 'RENT') {
-      return `${property.price.toLocaleString()} ₸ / сутки`;
-    }
-    return `${property.price.toLocaleString()} ₸`;
+  const getPriceText = (p: Property) =>
+    p.contractType === 'RENT' ? `${p.price.toLocaleString()} ₸/ночь` : `${p.price.toLocaleString()} ₸`;
+
+  const getCityName = (p: Property): string => {
+    if (typeof p.city === 'object' && p.city !== null && 'name' in p.city)
+      return (p.city as { name: string }).name;
+    return (p.city as string) || '';
   };
 
-  // Получить название города
-  const getCityName = (property: Property): string => {
-    if (typeof property.city === 'object' && property.city !== null && 'name' in property.city) {
-      return (property.city as { name: string }).name;
-    }
-    return (property.city as string) || 'Город не указан';
-  };
-
-  // Если не авторизован
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center bg-blue-50 p-12 rounded-2xl border border-blue-200 max-w-md">
-          <Heart className="w-16 h-16 mx-auto mb-4 text-blue-600" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Авторизуйтесь
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Чтобы просмотреть избранное, пожалуйста, войдите в аккаунт
-          </p>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
+        <div className="text-center bg-white dark:bg-gray-900 p-12 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 max-w-md w-full">
+          <div className="w-16 h-16 bg-red-50 dark:bg-red-950/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Heart className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Войдите в аккаунт</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">Чтобы просматривать избранное</p>
           <button
             onClick={() => navigate("/login")}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition"
+            className="px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold rounded-2xl hover:bg-gray-700 dark:hover:bg-gray-100 transition"
           >
-            Перейти к входу
+            Войти
           </button>
         </div>
       </div>
     );
   }
 
-  // Состояние загрузки
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center">
-          <Loader className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600 font-medium">Загрузка избранного...</p>
+          <Loader className="w-10 h-10 animate-spin mx-auto mb-3 text-gray-400" />
+          <p className="text-gray-500 text-sm">Загрузка избранного...</p>
         </div>
       </div>
     );
   }
 
-  // Состояние ошибки
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-8 max-w-md flex gap-4">
-          <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md flex gap-4 border border-gray-100 dark:border-gray-800 shadow-card">
+          <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-1" />
           <div>
-            <h3 className="font-semibold text-red-900 mb-1">Ошибка загрузки</h3>
-            <p className="text-red-700 text-sm">{error}</p>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Ошибка загрузки</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">{error}</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Пустое избранное
   if (favorites.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="container mx-auto px-4 py-16">
-          <div className="text-center max-w-md mx-auto">
-            <div className="w-24 h-24 mx-auto mb-6 bg-red-50 rounded-full flex items-center justify-center">
-              <Heart className="w-12 h-12 text-red-400" />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+        <div className="max-w-7xl mx-auto px-4 py-16">
+          <div className="text-center max-w-sm mx-auto">
+            <div className="w-24 h-24 mx-auto mb-6 bg-red-50 dark:bg-red-950/20 rounded-full flex items-center justify-center">
+              <Heart className="w-12 h-12 text-red-300" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-3">
-              Список избранного пуст
-            </h1>
-            <p className="text-gray-600 mb-8 text-lg">
-              Добавьте дома, которые вам понравились, в избранное и они появятся здесь
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Список избранного пуст</h1>
+            <p className="text-gray-500 dark:text-gray-400 mb-8 text-sm">
+              Добавляйте понравившиеся объекты, нажимая на сердечко
             </p>
             <button
               onClick={() => navigate("/")}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition inline-block"
+              className="px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold rounded-2xl hover:bg-gray-700 dark:hover:bg-gray-100 transition text-sm"
             >
               Начать поиск
             </button>
@@ -178,90 +125,83 @@ const FavoritesPage = () => {
     );
   }
 
-  // Основной контент с сеткой
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-12">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
         {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Избранное</h1>
-          <p className="text-gray-600 text-lg">
-            {favorites.length}{" "}
-            {favorites.length === 1
-              ? "объект"
-              : favorites.length < 5
-                ? "объекта"
-                : "объектов"}{" "}
-            добавлено
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Избранное</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
+            {favorites.length} {favorites.length === 1 ? "объект" : favorites.length < 5 ? "объекта" : "объектов"}
           </p>
         </div>
 
-        {/* Сетка карточек */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {favorites.map(property => (
             <Link
               key={property.id}
               to={`/property/${property.id}`}
-              className="group bg-white rounded-2xl shadow-md hover:shadow-xl transition overflow-hidden border border-gray-100 no-underline"
+              className="group bg-white dark:bg-gray-900 rounded-3xl shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden border border-gray-100 dark:border-gray-800 block"
             >
-              {/* Изображение */}
-              <div className="relative w-full h-64 bg-gray-200 overflow-hidden">
+              {/* Image */}
+              <div className="relative overflow-hidden aspect-[4/3] bg-gray-100 dark:bg-gray-800">
                 {property.images && property.images.length > 0 ? (
                   <img
                     src={property.images[0]}
                     alt={property.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-300">
-                    <span className="text-gray-500 text-center px-4">
-                      Нет фотографии
-                    </span>
+                  <div className="w-full h-full flex items-center justify-center">
+                    <MapPin className="w-10 h-10 text-gray-200 dark:text-gray-700" />
                   </div>
                 )}
 
-                {/* Тип объекта */}
-                <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-blue-600 px-3 py-1 rounded-full text-xs font-bold uppercase">
+                {/* Type badge */}
+                <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full text-xs font-bold text-gray-700 dark:text-gray-200 capitalize">
                   {property.type}
                 </div>
 
-                {/* Кнопка удаления из избранного */}
+                {/* Remove button */}
                 <button
-                  onClick={() => handleRemoveFavorite(property.id)}
+                  onClick={e => handleRemoveFavorite(property.id, e)}
                   disabled={removingIds.has(property.id)}
-                  className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm hover:bg-white rounded-full p-2.5 transition disabled:opacity-50 shadow-md"
+                  className="absolute top-3 right-3 w-9 h-9 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:scale-110 transition-transform disabled:opacity-50"
                   title="Удалить из избранного"
                 >
-                  <Heart className="w-5 h-5 fill-red-500 text-red-500" />
+                  {removingIds.has(property.id)
+                    ? <Loader className="w-4 h-4 animate-spin text-gray-400" />
+                    : <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                  }
                 </button>
+
+                {property.contractType === "SALE" && (
+                  <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-gray-900/80 backdrop-blur-sm rounded-full text-xs font-bold text-white">
+                    Продажа
+                  </div>
+                )}
               </div>
 
-              {/* Информация */}
-              <div className="p-5">
-                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition">
+              {/* Info */}
+              <div className="p-4">
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-1 mb-1 group-hover:text-brand-500 transition-colors">
                   {property.title}
                 </h3>
-
-                <div className="flex items-center text-gray-600 mb-4">
-                  <MapPin className="w-4 h-4 mr-1 text-blue-500" />
-                  <span className="text-sm">{getCityName(property)}</span>
+                <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-xs mb-3">
+                  <MapPin className="w-3 h-3 flex-shrink-0" />
+                  <span className="line-clamp-1">{getCityName(property)}</span>
                 </div>
-
-                {/* Описание */}
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                  {property.description}
-                </p>
-
-                {/* Цена */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">
-                      {property.contractType === 'RENT' ? 'Цена за сутки' : 'Стоимость'}
-                    </p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {getPriceText(property)}
-                    </p>
-                  </div>
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <p className="font-bold text-gray-900 dark:text-white text-sm">{getPriceText(property)}</p>
+                  <button
+                    onClick={e => handleRemoveFavorite(property.id, e)}
+                    disabled={removingIds.has(property.id)}
+                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" /> Удалить
+                  </button>
                 </div>
               </div>
             </Link>

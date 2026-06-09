@@ -10,7 +10,7 @@ router.post('/', authenticateToken, createReview);
 // GET  /api/reviews/property/:propertyId     — отзывы объекта
 router.get('/property/:propertyId', getPropertyReviews);
 
-// GET  /api/reviews/can-review/:bookingId    — проверка права на отзыв
-router.get('/can-review/:bookingId', authenticateToken, canReview);
+// GET  /api/reviews/can-review/:propertyId   — проверка права на отзыв
+router.get('/can-review/:propertyId', authenticateToken, canReview);
 
 export default router;
