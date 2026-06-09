@@ -8,6 +8,9 @@ import {
   approveProperty,
   rejectProperty,
   getAuditLog,
+  getAdminBookings,
+  getAdminReviews,
+  deleteAdminReview,
 } from '../controllers/adminController.js';
 import { authenticateToken } from '../middlewares/auth.js';
 import { requireAdmin } from '../middlewares/requireRole.js';
@@ -32,5 +35,12 @@ router.patch('/properties/:id/reject', rejectProperty);
 
 // Журнал действий администраторов
 router.get('/audit', getAuditLog);
+
+// Бронирования (просмотр)
+router.get('/bookings', getAdminBookings);
+
+// Отзывы (просмотр + удаление)
+router.get('/reviews', getAdminReviews);
+router.delete('/reviews/:id', deleteAdminReview);
 
 export default router;

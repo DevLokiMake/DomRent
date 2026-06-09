@@ -318,6 +318,87 @@ export const rejectProperty = async (req, res) => {
   }
 };
 
+// ─── Все бронирования (для admin) ────────────────────────────────────────────
+
+export const getAdminBookings = async (req, res) => {
+  try {
+    const { status, page = '1', limit = '15' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {};
+    if (status) where.status = status;
+
+    const [bookings, total] = await Promise.all([
+      prisma.booking.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true } },
+          property: {
+            select: { id: true, title: true, price: true, city: { select: { name: true } } }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit),
+      }),
+      prisma.booking.count({ where }),
+    ]);
+
+    res.json({ bookings, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (error) {
+    console.error('getAdminBookings error:', error);
+    res.status(500).json({ error: 'Ошибка получения бронирований' });
+  }
+};
+
+// ─── Все отзывы (для admin) ───────────────────────────────────────────────────
+
+export const getAdminReviews = async (req, res) => {
+  try {
+    const { page = '1', limit = '15' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        include: {
+          author: { select: { id: true, name: true, email: true } },
+          property: { select: { id: true, title: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit),
+      }),
+      prisma.review.count(),
+    ]);
+
+    res.json({ reviews, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (error) {
+    console.error('getAdminReviews error:', error);
+    res.status(500).json({ error: 'Ошибка получения отзывов' });
+  }
+};
+
+export const deleteAdminReview = async (req, res) => {
+  try {
+    const reviewId = parseInt(req.params.id);
+    if (isNaN(reviewId)) return res.status(400).json({ error: 'Некорректный ID' });
+
+    const review = await prisma.review.findUnique({ where: { id: reviewId } });
+    if (!review) return res.status(404).json({ error: 'Отзыв не найден' });
+
+    await prisma.review.delete({ where: { id: reviewId } });
+
+    await logAdminAction(req.user.id, 'DELETE_REVIEW', reviewId, 'REVIEW', {
+      propertyId: review.propertyId, authorId: review.authorId,
+    });
+
+    res.json({ message: 'Отзыв удалён' });
+  } catch (error) {
+    console.error('deleteAdminReview error:', error);
+    res.status(500).json({ error: 'Ошибка удаления отзыва' });
+  }
+};
+
 // ─── Журнал действий ─────────────────────────────────────────────────────────
 
 /**

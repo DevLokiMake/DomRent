@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Loader, AlertCircle, Trash2, Phone, Mail,
-  MapPin, Calendar, MessageSquare, Star, Home
+  MapPin, Calendar, MessageSquare, Star, Home,
+  ChevronLeft, ChevronRight, Lock, Unlock,
 } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
@@ -65,10 +66,17 @@ const STATUS_FILTERS: { value: BookingStatus | "ALL"; label: string }[] = [
   { value: "CANCELLED", label: "Отменённые" },
 ];
 
+interface MyProperty {
+  id: number; title: string; type: string; status: string;
+  images: string[]; coverImage: string | null;
+}
+
+const MONTHS_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+
 const BookingsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"trips" | "rentals">("trips");
+  const [activeTab, setActiveTab] = useState<"trips" | "rentals" | "calendar">("trips");
   const [statusFilter, setStatusFilter] = useState<BookingStatus | "ALL">("ALL");
 
   const [myBookings, setMyBookings] = useState<BookingWithProperty[]>([]);
@@ -80,6 +88,16 @@ const BookingsPage = () => {
   const [ownerBookingsError, setOwnerBookingsError] = useState<string | null>(null);
 
   const [cancelingId, setCancelingId] = useState<number | null>(null);
+
+  // ── Occupancy calendar state ──────────────────────────────────────────────
+  const [myProperties, setMyProperties] = useState<MyProperty[]>([]);
+  const [selectedPropId, setSelectedPropId] = useState<number | null>(null);
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [bookingDates, setBookingDates] = useState<Record<string, number>>({});
+  const [manualDates, setManualDates] = useState<string[]>([]);
+  const [bookingRanges, setBookingRanges] = useState<any[]>([]);
+  const [calLoading, setCalLoading] = useState(false);
+  const [togglingDate, setTogglingDate] = useState<string | null>(null);
 
   const [reviewModal, setReviewModal] = useState<{ bookingId: number; propertyTitle: string } | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -102,7 +120,41 @@ const BookingsPage = () => {
     }).catch(err => {
       setOwnerBookingsError(err.response?.data?.error || "Не удалось загрузить бронирования");
     }).finally(() => setOwnerBookingsLoading(false));
+    // Мои объекты для календаря
+    axiosInstance.get("/properties/my")
+      .then(res => {
+        const props = res.data.properties || [];
+        setMyProperties(props);
+        if (props.length > 0) setSelectedPropId(props[0].id);
+      }).catch(() => {});
   }, [user?.role]);
+
+  useEffect(() => {
+    if (!selectedPropId) return;
+    setCalLoading(true);
+    axiosInstance.get(`/properties/${selectedPropId}/occupancy`)
+      .then(res => {
+        setBookingDates(res.data.bookingDates || {});
+        setManualDates(res.data.manualDates || []);
+        setBookingRanges(res.data.bookingRanges || []);
+      }).catch(() => {})
+      .finally(() => setCalLoading(false));
+  }, [selectedPropId]);
+
+  const handleToggleBlock = async (iso: string) => {
+    if (!selectedPropId || togglingDate) return;
+    setTogglingDate(iso);
+    try {
+      if (manualDates.includes(iso)) {
+        await axiosInstance.delete(`/properties/${selectedPropId}/blocked-dates`, { data: { dates: [iso] } });
+        setManualDates(prev => prev.filter(d => d !== iso));
+      } else {
+        await axiosInstance.post(`/properties/${selectedPropId}/blocked-dates`, { dates: [iso], reason: "manual" });
+        setManualDates(prev => [...prev, iso]);
+      }
+    } catch (err: unknown) { alert((err as any)?.response?.data?.error || "Ошибка"); }
+    finally { setTogglingDate(null); }
+  };
 
   const handleCancelBooking = async (bookingId: number) => {
     if (!window.confirm("Вы уверены, что хотите отменить бронирование?")) return;
@@ -140,6 +192,21 @@ const BookingsPage = () => {
       setReviewLoading(false);
     }
   };
+
+  const calendarDays = useMemo(() => {
+    const year = calMonth.getFullYear();
+    const month = calMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const offset = (firstDay + 6) % 7;
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < offset; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    return cells;
+  }, [calMonth]);
+
+  const todayISO = new Date().toISOString().split("T")[0];
+  const toISO = (d: Date) => d.toISOString().split("T")[0];
 
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString("ru-RU", { year: "numeric", month: "short", day: "numeric" });
@@ -387,19 +454,34 @@ const BookingsPage = () => {
             )}
           </button>
           {user?.role === "LANDLORD" && (
-            <button
-              onClick={() => setActiveTab("rentals")}
-              className={`px-6 py-2.5 rounded-xl font-semibold text-sm transition ${
-                activeTab === "rentals" ? "bg-gray-900 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-              }`}
-            >
-              Управление арендой
-              {ownerBookings.length > 0 && (
-                <span className={`ml-2 text-xs ${activeTab === "rentals" ? "text-gray-300" : "text-gray-400"}`}>
-                  {ownerBookings.length}
-                </span>
-              )}
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab("rentals")}
+                className={`px-6 py-2.5 rounded-xl font-semibold text-sm transition ${
+                  activeTab === "rentals"
+                    ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
+                }`}
+              >
+                Управление арендой
+                {ownerBookings.length > 0 && (
+                  <span className={`ml-2 text-xs ${activeTab === "rentals" ? "text-gray-300 dark:text-gray-600" : "text-gray-400"}`}>
+                    {ownerBookings.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab("calendar")}
+                className={`flex items-center gap-1.5 px-6 py-2.5 rounded-xl font-semibold text-sm transition ${
+                  activeTab === "calendar"
+                    ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                Календарь занятости
+              </button>
+            </>
           )}
         </div>
 
@@ -462,6 +544,189 @@ const BookingsPage = () => {
             </div>
           )
         )}
+
+        {/* ── Occupancy Calendar ─────────────────────────────────────────── */}
+        {activeTab === "calendar" && (
+          <div>
+            {myProperties.length === 0 ? (
+              <EmptyState message="У вас пока нет объявлений" />
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left: calendar */}
+                <div className="lg:col-span-2">
+                  {/* Property selector */}
+                  <div className="mb-5">
+                    <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">Объект</label>
+                    <select
+                      value={selectedPropId ?? ""}
+                      onChange={e => setSelectedPropId(parseInt(e.target.value))}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400"
+                    >
+                      {myProperties.map(p => (
+                        <option key={p.id} value={p.id}>{p.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {calLoading ? (
+                    <div className="flex justify-center py-16"><Loader className="w-8 h-8 animate-spin text-gray-400" /></div>
+                  ) : (
+                    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-card overflow-hidden">
+                      {/* Month navigation */}
+                      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+                        <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+                          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                          <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                        <span className="font-bold text-gray-900 dark:text-white">
+                          {MONTHS_RU[calMonth.getMonth()]} {calMonth.getFullYear()}
+                        </span>
+                        <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+                          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                          <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                      </div>
+
+                      {/* Day names */}
+                      <div className="grid grid-cols-7 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                        {["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(d => (
+                          <div key={d} className="text-center text-xs font-semibold text-gray-400 dark:text-gray-500 py-2.5">{d}</div>
+                        ))}
+                      </div>
+
+                      {/* Days grid */}
+                      <div className="grid grid-cols-7 p-3 gap-1">
+                        {calendarDays.map((d, i) => {
+                          if (!d) return <div key={i} />;
+                          const iso = toISO(d);
+                          const isPast = iso < todayISO;
+                          const isBooked = !!bookingDates[iso];
+                          const isManual = manualDates.includes(iso);
+                          const isToggling = togglingDate === iso;
+
+                          let cls = "text-gray-300 dark:text-gray-600"; // past
+                          let bg = "";
+                          let title = "";
+
+                          if (!isPast) {
+                            if (isBooked) {
+                              bg = "bg-red-100 dark:bg-red-950/30";
+                              cls = "text-red-700 dark:text-red-300 font-semibold";
+                              title = "Занято (бронирование)";
+                            } else if (isManual) {
+                              bg = "bg-orange-100 dark:bg-orange-950/30";
+                              cls = "text-orange-700 dark:text-orange-300 font-semibold cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-950/50";
+                              title = "Заблокировано вручную — нажмите чтобы разблокировать";
+                            } else {
+                              bg = "hover:bg-emerald-50 dark:hover:bg-emerald-950/20";
+                              cls = "text-gray-700 dark:text-gray-300 cursor-pointer";
+                              title = "Свободно — нажмите чтобы заблокировать";
+                            }
+                          }
+
+                          return (
+                            <button
+                              key={i}
+                              disabled={isPast || isBooked || isToggling}
+                              onClick={() => !isPast && !isBooked && handleToggleBlock(iso)}
+                              title={title}
+                              className={`relative aspect-square flex flex-col items-center justify-center rounded-xl text-sm transition-colors ${bg} ${cls} disabled:cursor-default`}
+                            >
+                              {isToggling && (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/50 dark:bg-gray-900/50">
+                                  <Loader className="w-3 h-3 animate-spin text-gray-400" />
+                                </div>
+                              )}
+                              <span>{d.getDate()}</span>
+                              {isManual && <span className="w-1 h-1 bg-orange-500 rounded-full mt-0.5" />}
+                              {isBooked && <span className="w-1 h-1 bg-red-500 rounded-full mt-0.5" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Legend */}
+                      <div className="flex flex-wrap gap-4 px-5 py-3 border-t border-gray-100 dark:border-gray-800 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 rounded-sm bg-red-100 dark:bg-red-950/30 border border-red-300 dark:border-red-800" />
+                          <span className="text-gray-600 dark:text-gray-400">Забронировано</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 rounded-sm bg-orange-100 dark:bg-orange-950/30 border border-orange-300 dark:border-orange-800" />
+                          <span className="text-gray-600 dark:text-gray-400">Заблокировано вручную</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 rounded-sm bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900" />
+                          <span className="text-gray-600 dark:text-gray-400">Свободно (кликните чтобы закрыть)</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: booking list */}
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">Активные бронирования</h3>
+                  {bookingRanges.length === 0 ? (
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 text-center border border-gray-100 dark:border-gray-800">
+                      <Calendar className="w-8 h-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
+                      <p className="text-gray-400 dark:text-gray-500 text-sm">Нет активных бронирований</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {bookingRanges.map(b => (
+                        <div key={b.id} className="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              b.status === "ACTIVE"
+                                ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400"
+                                : "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
+                            }`}>
+                              {b.status === "ACTIVE" ? "Активное" : "Предстоящее"}
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">{b.guest}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(b.startDate).toLocaleDateString("ru-RU")} — {new Date(b.endDate).toLocaleDateString("ru-RU")}
+                          </p>
+                          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">{b.totalPrice.toLocaleString()} ₸</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Manual blocks info */}
+                  {manualDates.length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-orange-500" />
+                        Закрытые даты ({manualDates.length})
+                      </h3>
+                      <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 max-h-40 overflow-y-auto">
+                        {manualDates.sort().map(d => (
+                          <div key={d} className="flex items-center justify-between py-1">
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {new Date(d + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                            </span>
+                            <button
+                              onClick={() => handleToggleBlock(d)}
+                              disabled={togglingDate === d}
+                              className="text-xs text-orange-500 hover:text-orange-700 transition flex items-center gap-1"
+                            >
+                              <Unlock className="w-3 h-3" /> Открыть
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* Review Modal */}

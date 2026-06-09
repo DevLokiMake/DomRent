@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   MapPin, Loader, AlertCircle, ArrowLeft, Heart, Star, Wifi, Car,
-  PawPrint, BedDouble, ChevronLeft, ChevronRight, Clock, XCircle, User,
+  PawPrint, BedDouble, ChevronLeft, ChevronRight, Clock, XCircle, User, TrendingUp,
 } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
@@ -80,6 +80,8 @@ const PropertyPage = () => {
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [canReview, setCanReview] = useState(true);
 
+  const [similarProperties, setSimilarProperties] = useState<any[]>([]);
+
   const fetchReviews = () => {
     if (!id) return;
     axiosInstance.get(`/reviews/property/${id}`).then(res => {
@@ -105,6 +107,30 @@ const PropertyPage = () => {
   }, [user, id]);
 
   useEffect(() => { fetchReviews(); }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    axiosInstance.get(`/properties/${id}/similar`)
+      .then(res => setSimilarProperties(res.data.properties || []))
+      .catch(() => {});
+  }, [id]);
+
+  // Сохраняем в "недавно просмотренные"
+  useEffect(() => {
+    if (!property) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem("domrent_viewed") || "[]");
+      const entry = {
+        id: property.id, title: property.title, price: property.price,
+        type: property.type, contractType: property.contractType,
+        image: property.coverImage || property.images?.[0] || null,
+        city: typeof property.city === "object" && property.city !== null
+          ? (property.city as any).name : property.city,
+      };
+      const filtered = stored.filter((p: any) => p.id !== property.id);
+      localStorage.setItem("domrent_viewed", JSON.stringify([entry, ...filtered].slice(0, 6)));
+    } catch { /* silent */ }
+  }, [property]);
 
   useEffect(() => {
     if (!id) return;
@@ -697,6 +723,45 @@ const PropertyPage = () => {
           </div>
         </div>
       </div>
+
+      {/* ── Похожие объекты ─────────────────────────────────────────────────── */}
+      {similarProperties.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 pb-16">
+          <div className="flex items-center gap-2 mb-5">
+            <TrendingUp className="w-5 h-5 text-brand-500" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Похожие объекты</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {similarProperties.map(p => {
+              const img = p.coverImage || p.images?.[0];
+              const city = typeof p.city === "object" && p.city ? p.city.name : p.city;
+              const price = p.contractType === "RENT" ? `${p.price.toLocaleString()} ₸/ночь` : `${p.price.toLocaleString()} ₸`;
+              return (
+                <Link key={p.id} to={`/property/${p.id}`}
+                  className="group bg-white dark:bg-gray-900 rounded-3xl shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden border border-gray-100 dark:border-gray-800 block"
+                >
+                  <div className="relative aspect-[4/3] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                    {img
+                      ? <img src={img} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-8 h-8 text-gray-300 dark:text-gray-600" /></div>
+                    }
+                    <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full text-xs font-bold text-gray-700 dark:text-gray-200 capitalize">
+                      {p.type}
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-1 mb-1 group-hover:text-brand-500 transition-colors">{p.title}</h3>
+                    <div className="flex items-center gap-1 text-gray-400 text-xs mb-2">
+                      <MapPin className="w-3 h-3 flex-shrink-0" /><span className="line-clamp-1">{city}</span>
+                    </div>
+                    <p className="font-bold text-gray-900 dark:text-white text-sm">{price}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

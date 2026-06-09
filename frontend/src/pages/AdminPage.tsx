@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   Users, Home, Calendar, TrendingUp, ShieldOff, Shield,
   CheckCircle, XCircle, Clock, Search, ChevronLeft, ChevronRight,
-  AlertTriangle, Loader, BarChart3, ArrowUpRight, ClipboardList, Star
+  AlertTriangle, Loader, BarChart3, ArrowUpRight, ClipboardList, Star, Trash2
 } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
@@ -39,6 +39,17 @@ interface AuditEntry {
   details: Record<string, unknown> | null; createdAt: string;
   admin: { id: number; name: string | null; email: string; avatar?: string | null };
 }
+interface AdminBooking {
+  id: number; startDate: string; endDate: string; totalPrice: number;
+  status: string; createdAt: string;
+  user: { id: number; name: string | null; email: string };
+  property: { id: number; title: string; city: { name: string } };
+}
+interface AdminReview {
+  id: number; rating: number; text: string; anonymous: boolean; createdAt: string;
+  author: { id: number; name: string | null; email: string };
+  property: { id: number; title: string };
+}
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 const StatCard = ({ icon, label, value, sub, trend, iconBg }: {
@@ -63,7 +74,7 @@ const StatCard = ({ icon, label, value, sub, trend, iconBg }: {
 );
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-type Tab = "stats" | "users" | "moderation" | "audit";
+type Tab = "stats" | "users" | "moderation" | "bookings" | "reviews" | "audit";
 
 const AdminPage = () => {
   const { user } = useAuth();
@@ -170,6 +181,60 @@ const AdminPage = () => {
     finally { setModeratingId(null); }
   };
 
+  // ─── Admin Bookings ───────────────────────────────────────────────────────
+  const [adminBookings, setAdminBookings] = useState<AdminBooking[]>([]);
+  const [adminBookingsTotal, setAdminBookingsTotal] = useState(0);
+  const [adminBookingsPage, setAdminBookingsPage] = useState(1);
+  const [adminBookingsLoading, setAdminBookingsLoading] = useState(false);
+  const [adminBookingsStatus, setAdminBookingsStatus] = useState("");
+
+  const fetchAdminBookings = useCallback(async (page = 1, status = "") => {
+    setAdminBookingsLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: "15" });
+      if (status) params.set("status", status);
+      const r = await axiosInstance.get(`/admin/bookings?${params}`);
+      setAdminBookings(r.data.bookings); setAdminBookingsTotal(r.data.total);
+    } catch (err) { console.error(err); }
+    finally { setAdminBookingsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "bookings") fetchAdminBookings(adminBookingsPage, adminBookingsStatus);
+  }, [tab, adminBookingsPage, adminBookingsStatus, fetchAdminBookings]);
+
+  // ─── Admin Reviews ────────────────────────────────────────────────────────
+  const [adminReviews, setAdminReviews] = useState<AdminReview[]>([]);
+  const [adminReviewsTotal, setAdminReviewsTotal] = useState(0);
+  const [adminReviewsPage, setAdminReviewsPage] = useState(1);
+  const [adminReviewsLoading, setAdminReviewsLoading] = useState(false);
+  const [deletingReviewId, setDeletingReviewId] = useState<number | null>(null);
+
+  const fetchAdminReviews = useCallback(async (page = 1) => {
+    setAdminReviewsLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: "15" });
+      const r = await axiosInstance.get(`/admin/reviews?${params}`);
+      setAdminReviews(r.data.reviews); setAdminReviewsTotal(r.data.total);
+    } catch (err) { console.error(err); }
+    finally { setAdminReviewsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "reviews") fetchAdminReviews(adminReviewsPage);
+  }, [tab, adminReviewsPage, fetchAdminReviews]);
+
+  const handleDeleteReview = async (id: number) => {
+    if (!window.confirm("Удалить этот отзыв?")) return;
+    setDeletingReviewId(id);
+    try {
+      await axiosInstance.delete(`/admin/reviews/${id}`);
+      setAdminReviews(prev => prev.filter(r => r.id !== id));
+      setAdminReviewsTotal(t => t - 1);
+    } catch (err: unknown) { alert((err as any).response?.data?.error || "Ошибка"); }
+    finally { setDeletingReviewId(null); }
+  };
+
   // ─── Audit ────────────────────────────────────────────────────────────────
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
   const [auditTotal, setAuditTotal] = useState(0);
@@ -216,6 +281,8 @@ const AdminPage = () => {
     { id: "stats",      label: t('admin.tabs.stats'),      icon: <BarChart3 className="w-4 h-4" /> },
     { id: "users",      label: t('admin.tabs.users'),      icon: <Users className="w-4 h-4" /> },
     { id: "moderation", label: t('admin.tabs.moderation'), icon: <Home className="w-4 h-4" />, badge: stats?.pendingProperties },
+    { id: "bookings",   label: "Бронирования",             icon: <Calendar className="w-4 h-4" /> },
+    { id: "reviews",    label: "Отзывы",                   icon: <Star className="w-4 h-4" /> },
     { id: "audit",      label: t('admin.tabs.audit'),      icon: <ClipboardList className="w-4 h-4" /> },
   ];
 
@@ -550,6 +617,142 @@ const AdminPage = () => {
               </div>
             )}
             <Pagination page={modPage} total={totalModPages} onPage={setModPage} />
+          </div>
+        )}
+
+        {/* ─── BOOKINGS ───────────────────────────────────────────────────── */}
+        {tab === "bookings" && (
+          <div>
+            {/* Status filter */}
+            <div className="flex gap-2 flex-wrap mb-5">
+              {[
+                { value: "", label: "Все" },
+                { value: "UPCOMING",  label: "Предстоящие" },
+                { value: "ACTIVE",    label: "Активные" },
+                { value: "COMPLETED", label: "Завершённые" },
+                { value: "CANCELLED", label: "Отменённые" },
+              ].map(s => (
+                <button key={s.value} onClick={() => { setAdminBookingsStatus(s.value); setAdminBookingsPage(1); }}
+                  className={`px-4 py-2 rounded-2xl text-sm font-semibold border transition ${
+                    adminBookingsStatus === s.value
+                      ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white"
+                      : "bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400"
+                  }`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">Всего: <strong className="text-gray-700 dark:text-gray-300">{adminBookingsTotal}</strong></p>
+
+            {adminBookingsLoading ? (
+              <div className="flex justify-center py-16"><Loader className="w-8 h-8 animate-spin text-gray-400" /></div>
+            ) : adminBookings.length === 0 ? (
+              <div className="text-center py-20">
+                <Calendar className="w-12 h-12 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
+                <p className="text-gray-400 dark:text-gray-500 font-medium">Бронирований нет</p>
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[700px]">
+                    <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                      <tr>
+                        {["ID", "Объект", "Гость", "Даты", "Сумма", "Статус"].map(h => (
+                          <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                      {adminBookings.map(b => {
+                        const STATUS_B: Record<string, string> = {
+                          UPCOMING: "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+                          ACTIVE: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+                          COMPLETED: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700",
+                          CANCELLED: "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+                        };
+                        const STATUS_LABEL: Record<string, string> = { UPCOMING: "Предстоящее", ACTIVE: "Активное", COMPLETED: "Завершено", CANCELLED: "Отменено" };
+                        return (
+                          <tr key={b.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition">
+                            <td className="px-4 py-3.5 text-gray-400 dark:text-gray-500 font-mono text-xs">#{b.id}</td>
+                            <td className="px-4 py-3.5">
+                              <p className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-1">{b.property?.title}</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500">{b.property?.city?.name}</p>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <p className="font-medium text-gray-800 dark:text-gray-200 text-sm">{b.user?.name || "—"}</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500">{b.user?.email}</p>
+                            </td>
+                            <td className="px-4 py-3.5 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                              {new Date(b.startDate).toLocaleDateString("ru-RU")} — {new Date(b.endDate).toLocaleDateString("ru-RU")}
+                            </td>
+                            <td className="px-4 py-3.5 font-bold text-gray-900 dark:text-white text-sm whitespace-nowrap">
+                              {b.totalPrice.toLocaleString()} ₸
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${STATUS_B[b.status] || ""}`}>
+                                {STATUS_LABEL[b.status] || b.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            <Pagination page={adminBookingsPage} total={Math.ceil(adminBookingsTotal / 15)} onPage={setAdminBookingsPage} />
+          </div>
+        )}
+
+        {/* ─── REVIEWS ────────────────────────────────────────────────────── */}
+        {tab === "reviews" && (
+          <div>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">Всего отзывов: <strong className="text-gray-700 dark:text-gray-300">{adminReviewsTotal}</strong></p>
+
+            {adminReviewsLoading ? (
+              <div className="flex justify-center py-16"><Loader className="w-8 h-8 animate-spin text-gray-400" /></div>
+            ) : adminReviews.length === 0 ? (
+              <div className="text-center py-20">
+                <Star className="w-12 h-12 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
+                <p className="text-gray-400 dark:text-gray-500 font-medium">Отзывов нет</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {adminReviews.map(r => (
+                  <div key={r.id} className="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 shadow-card flex gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {r.anonymous ? "Аноним" : (r.author?.name || r.author?.email)}
+                            {r.anonymous && <span className="ml-2 text-xs text-gray-400">(анонимно)</span>}
+                          </p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500">{r.property?.title}</p>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {[1,2,3,4,5].map(s => (
+                            <Star key={s} className={`w-3.5 h-3.5 ${s <= r.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-200 dark:text-gray-700"}`} />
+                          ))}
+                          <span className="text-xs font-bold text-gray-600 dark:text-gray-400 ml-1">{r.rating}/5</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-2">{r.text}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(r.createdAt).toLocaleString("ru-RU")}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteReview(r.id)}
+                      disabled={deletingReviewId === r.id}
+                      className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 text-red-500 rounded-xl transition disabled:opacity-40"
+                      title="Удалить отзыв"
+                    >
+                      {deletingReviewId === r.id ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Pagination page={adminReviewsPage} total={Math.ceil(adminReviewsTotal / 15)} onPage={setAdminReviewsPage} />
           </div>
         )}
 

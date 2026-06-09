@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Loader, AlertCircle, X, Heart, Wifi, Car, PawPrint, BedDouble, SlidersHorizontal, Search } from "lucide-react";
+import { MapPin, Loader, AlertCircle, X, Heart, Wifi, Car, PawPrint, BedDouble, SlidersHorizontal, Search, TrendingUp, Clock } from "lucide-react";
 import axiosInstance from "../api/axios";
 import type { Property } from "../types";
 
@@ -23,6 +23,11 @@ const EMPTY_FILTERS: FilterState = {
   rooms: "", hasWifi: false, hasParking: false, petsAllowed: false,
 };
 
+interface RecentItem {
+  id: number; title: string; price: number; type: string;
+  contractType: string; image: string | null; city: string;
+}
+
 const HomePage = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +37,8 @@ const HomePage = () => {
   const [citiesLoading, setCitiesLoading] = useState(true);
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [popularProperties, setPopularProperties] = useState<Property[]>([]);
+  const [recentlyViewed, setRecentlyViewed] = useState<RecentItem[]>([]);
 
   const fetchProperties = useCallback(async (f?: FilterState) => {
     try {
@@ -73,6 +80,15 @@ const HomePage = () => {
 
   useEffect(() => {
     Promise.all([fetchProperties(), fetchCities(), fetchFavorites()]);
+    // Популярные объекты
+    axiosInstance.get("/properties/popular?limit=6")
+      .then(res => setPopularProperties(res.data.properties || []))
+      .catch(() => {});
+    // Недавно просмотренные из localStorage
+    try {
+      const stored = JSON.parse(localStorage.getItem("domrent_viewed") || "[]");
+      setRecentlyViewed(stored.slice(0, 6));
+    } catch { /* silent */ }
   }, []); // eslint-disable-line
 
   const handleToggleFavorite = async (propertyId: number, e: React.MouseEvent) => {
@@ -311,6 +327,90 @@ const HomePage = () => {
             <button onClick={handleReset} className="px-6 py-2.5 bg-gray-900 text-white rounded-2xl text-sm font-semibold hover:bg-gray-700 transition-colors">
               Сбросить фильтры
             </button>
+          </div>
+        )}
+
+        {/* ── Популярные объекты (если нет активных фильтров) ────────────── */}
+        {!loading && !hasActive && properties.length > 0 && popularProperties.length > 0 && (
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-5">
+              <TrendingUp className="w-5 h-5 text-brand-500" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Популярные объекты</h2>
+              <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                по бронированиям
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {popularProperties.slice(0, 3).map(property => {
+                const img = property.coverImage || property.images?.[0];
+                const city = getCityName(property);
+                return (
+                  <Link key={property.id} to={`/property/${property.id}`}
+                    className="group relative bg-white dark:bg-gray-900 rounded-3xl overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 border border-gray-100 dark:border-gray-800 block"
+                  >
+                    <div className="relative aspect-[16/9] bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                      {img
+                        ? <img src={img} alt={property.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                        : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-8 h-8 text-gray-200 dark:text-gray-700" /></div>
+                      }
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <p className="text-white font-bold text-sm line-clamp-1">{property.title}</p>
+                        <p className="text-white/80 text-xs flex items-center gap-1"><MapPin className="w-3 h-3" />{city}</p>
+                      </div>
+                      <button
+                        onClick={e => handleToggleFavorite(property.id, e)}
+                        className="absolute top-3 right-3 w-8 h-8 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                      >
+                        <Heart className={`transition-colors ${favorites.has(property.id) ? "fill-red-500 text-red-500" : "text-gray-400"}`} style={{ width: 16, height: 16 }} />
+                      </button>
+                    </div>
+                    <div className="p-4 flex items-center justify-between">
+                      <p className="font-bold text-gray-900 dark:text-white text-sm">{getPriceText(property)}</p>
+                      {(property._count as any)?.bookings > 0 && (
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
+                          {(property._count as any).bookings} брон.
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Недавно просмотренные ─────────────────────────────────────────── */}
+        {recentlyViewed.length > 0 && (
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-5">
+              <Clock className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Недавно просмотренные</h2>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {recentlyViewed.map(item => (
+                <Link key={item.id} to={`/property/${item.id}`}
+                  className="group flex-shrink-0 w-56 bg-white dark:bg-gray-900 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 hover:shadow-card-hover transition-all duration-300"
+                >
+                  <div className="relative h-32 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                    {item.image
+                      ? <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-6 h-6 text-gray-300 dark:text-gray-600" /></div>
+                    }
+                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-white/90 dark:bg-gray-900/90 rounded-full text-xs font-bold text-gray-700 dark:text-gray-200 capitalize">
+                      {item.type}
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <p className="font-semibold text-gray-900 dark:text-white text-xs line-clamp-1 mb-0.5 group-hover:text-brand-500 transition-colors">{item.title}</p>
+                    <p className="text-gray-400 text-xs flex items-center gap-1 mb-1"><MapPin className="w-2.5 h-2.5" />{item.city}</p>
+                    <p className="font-bold text-gray-900 dark:text-white text-xs">
+                      {item.contractType === "RENT" ? `${item.price.toLocaleString()} ₸/ночь` : `${item.price.toLocaleString()} ₸`}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         )}
 

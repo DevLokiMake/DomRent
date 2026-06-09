@@ -5,12 +5,16 @@ import {
   getPropertyById,
   updateProperty,
   deleteProperty,
-  getNearbyProperties
+  getNearbyProperties,
+  getPopularProperties,
+  getSimilarProperties,
+  getMyProperties,
 } from '../controllers/propertyController.js';
 import {
   getBlockedDates,
   addBlockedDates,
-  removeBlockedDates
+  removeBlockedDates,
+  getOccupancyCalendar,
 } from '../controllers/blockedDateController.js';
 import { authenticateToken } from '../middlewares/auth.js';
 import { validate, propertySchema, updatePropertySchema } from '../middlewares/validate.js';
@@ -37,6 +41,12 @@ router.get('/', getAllProperties);
 // GET /api/properties/nearby — Поиск рядом (MUST be before /:id)
 router.get('/nearby', getNearbyProperties);
 
+// GET /api/properties/popular — Популярные (MUST be before /:id)
+router.get('/popular', getPopularProperties);
+
+// GET /api/properties/my — Объекты текущего пользователя (MUST be before /:id)
+router.get('/my', authenticateToken, getMyProperties);
+
 // GET /api/properties/:id — Объект по ID (опциональная авторизация для статуса модерации)
 router.get('/:id', optionalAuth, getPropertyById);
 
@@ -46,9 +56,15 @@ router.put('/:id', authenticateToken, validate(updatePropertySchema), updateProp
 // DELETE /api/properties/:id — Удаление (владелец)
 router.delete('/:id', authenticateToken, deleteProperty);
 
+// GET /api/properties/:id/similar — Похожие объекты
+router.get('/:id/similar', getSimilarProperties);
+
 // ─── Календарь занятости ───────────────────────────────────────────────
 // GET  /api/properties/:id/blocked-dates — публичный (для формы бронирования)
 router.get('/:id/blocked-dates', getBlockedDates);
+
+// GET  /api/properties/:id/occupancy — детальный календарь (только владелец/admin)
+router.get('/:id/occupancy', authenticateToken, getOccupancyCalendar);
 // POST /api/properties/:id/blocked-dates — ручная блокировка (владелец/admin)
 router.post('/:id/blocked-dates', authenticateToken, addBlockedDates);
 // DELETE /api/properties/:id/blocked-dates — снять блокировку (владелец/admin)

@@ -344,6 +344,102 @@ export const updateProperty = async (req, res) => {
 };
 
 /**
+ * GET /api/properties/popular?limit=6
+ * Популярные объекты по количеству бронирований
+ */
+export const getPopularProperties = async (req, res) => {
+  try {
+    const { limit = '6' } = req.query;
+    const properties = await prisma.property.findMany({
+      where: { status: 'APPROVED' },
+      include: {
+        city: true,
+        owner: { select: { id: true, name: true, email: true } },
+        _count: { select: { bookings: true, favorites: true } }
+      },
+      orderBy: { bookings: { _count: 'desc' } },
+      take: Math.min(parseInt(limit) || 6, 20),
+    });
+    res.json({ properties });
+  } catch (error) {
+    console.error('getPopularProperties error:', error);
+    res.status(500).json({ error: 'Ошибка' });
+  }
+};
+
+/**
+ * GET /api/properties/:id/similar
+ * Похожие объекты (тот же город, затем тот же тип)
+ */
+export const getSimilarProperties = async (req, res) => {
+  try {
+    const propertyId = parseInt(req.params.id);
+    if (isNaN(propertyId)) return res.status(400).json({ error: 'Некорректный ID' });
+
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { type: true, cityId: true }
+    });
+    if (!property) return res.status(404).json({ error: 'Не найден' });
+
+    // Сначала тот же город
+    let similar = await prisma.property.findMany({
+      where: { status: 'APPROVED', id: { not: propertyId }, cityId: property.cityId },
+      include: {
+        city: true,
+        owner: { select: { id: true, name: true, email: true } },
+        _count: { select: { bookings: true, favorites: true } }
+      },
+      orderBy: { bookings: { _count: 'desc' } },
+      take: 4,
+    });
+
+    // Если меньше 4 — дополняем тем же типом из других городов
+    if (similar.length < 4) {
+      const ids = [propertyId, ...similar.map(p => p.id)];
+      const more = await prisma.property.findMany({
+        where: { status: 'APPROVED', id: { notIn: ids }, type: property.type },
+        include: {
+          city: true,
+          owner: { select: { id: true, name: true, email: true } },
+          _count: { select: { bookings: true, favorites: true } }
+        },
+        orderBy: { bookings: { _count: 'desc' } },
+        take: 4 - similar.length,
+      });
+      similar = [...similar, ...more];
+    }
+
+    res.json({ properties: similar });
+  } catch (error) {
+    console.error('getSimilarProperties error:', error);
+    res.status(500).json({ error: 'Ошибка' });
+  }
+};
+
+/**
+ * GET /api/properties/my
+ * Все объекты текущего пользователя (landlord)
+ */
+export const getMyProperties = async (req, res) => {
+  try {
+    const properties = await prisma.property.findMany({
+      where: { ownerId: req.user.id },
+      select: {
+        id: true, title: true, type: true, status: true,
+        images: true, coverImage: true, price: true,
+        city: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ properties });
+  } catch (error) {
+    console.error('getMyProperties error:', error);
+    res.status(500).json({ error: 'Ошибка' });
+  }
+};
+
+/**
  * Формула Haversine — расстояние между двумя точками на сфере (км)
  */
 const haversineKm = (lat1, lon1, lat2, lon2) => {

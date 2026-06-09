@@ -68,6 +68,64 @@ export const getBlockedDates = async (req, res) => {
 };
 
 /**
+ * GET /api/properties/:id/occupancy
+ * Детальный календарь занятости для владельца:
+ * — bookingDates: { "yyyy-mm-dd": bookingId }
+ * — manualDates: string[]
+ * — bookingRanges: список бронирований с гостем
+ */
+export const getOccupancyCalendar = async (req, res) => {
+  try {
+    const propertyId = parseInt(req.params.id);
+    if (isNaN(propertyId)) return res.status(400).json({ error: 'Некорректный ID' });
+
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { ownerId: true }
+    });
+    if (!property) return res.status(404).json({ error: 'Объект не найден' });
+    if (property.ownerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Нет прав' });
+    }
+
+    const [manualBlocked, activeBookings] = await Promise.all([
+      prisma.blockedDate.findMany({
+        where: { propertyId, reason: 'manual' },
+        select: { date: true }
+      }),
+      prisma.booking.findMany({
+        where: { propertyId, status: { in: ['UPCOMING', 'ACTIVE'] } },
+        include: { user: { select: { name: true, email: true } } }
+      })
+    ]);
+
+    const manualDates = manualBlocked.map(b => new Date(b.date).toISOString().split('T')[0]);
+
+    const bookingDates = {};
+    activeBookings.forEach(booking => {
+      const range = getDatesInRange(booking.startDate, booking.endDate);
+      range.forEach(d => {
+        bookingDates[d.toISOString().split('T')[0]] = booking.id;
+      });
+    });
+
+    const bookingRanges = activeBookings.map(b => ({
+      id: b.id,
+      startDate: b.startDate.toISOString().split('T')[0],
+      endDate: b.endDate.toISOString().split('T')[0],
+      guest: b.user.name || b.user.email,
+      totalPrice: b.totalPrice,
+      status: b.status,
+    }));
+
+    res.json({ manualDates, bookingDates, bookingRanges });
+  } catch (error) {
+    console.error('getOccupancyCalendar error:', error);
+    res.status(500).json({ error: 'Ошибка получения календаря' });
+  }
+};
+
+/**
  * POST /api/properties/:id/blocked-dates
  * Арендодатель вручную блокирует даты
  * Body: { dates: string[], reason?: string }
