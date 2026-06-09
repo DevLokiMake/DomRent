@@ -3,12 +3,12 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Home, Calendar, TrendingUp, ShieldOff, Shield,
   CheckCircle, XCircle, Clock, Search, ChevronLeft, ChevronRight,
-  AlertTriangle, Loader, BarChart3
+  AlertTriangle, Loader, BarChart3, ArrowUpRight
 } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 
-// ─── Типы ────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Stats {
   totalUsers: number;
@@ -47,26 +47,33 @@ interface AdminProperty {
   _count: { bookings: number; reviews: number };
 }
 
-// ─── Статистические карточки ──────────────────────────────────────────────────
+// ─── StatCard ─────────────────────────────────────────────────────────────────
 
 const StatCard = ({
-  icon, label, value, sub, color
+  icon, label, value, sub, trend, color
 }: {
-  icon: React.ReactNode; label: string; value: string | number; sub?: string; color: string;
+  icon: React.ReactNode; label: string; value: string | number; sub?: string; trend?: string; color: string;
 }) => (
-  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-    <div className="flex items-start justify-between">
-      <div>
-        <p className="text-sm text-gray-500 font-medium mb-1">{label}</p>
-        <p className={`text-3xl font-black ${color}`}>{value.toLocaleString()}</p>
-        {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+  <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100 hover:shadow-card-hover transition-all">
+    <div className="flex items-start justify-between mb-4">
+      <div className={`p-2.5 rounded-2xl ${color.replace("text-", "bg-").split("-")[0]}-50`}>
+        {icon}
       </div>
-      <div className={`p-3 rounded-xl bg-gray-50`}>{icon}</div>
+      {trend && (
+        <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+          <ArrowUpRight className="w-3 h-3" />{trend}
+        </span>
+      )}
     </div>
+    <p className={`text-3xl font-black mb-1 ${color}`}>
+      {typeof value === "number" ? value.toLocaleString() : value}
+    </p>
+    <p className="text-sm font-semibold text-gray-700">{label}</p>
+    {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
   </div>
 );
 
-// ─── Главный компонент ────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 type Tab = "stats" | "users" | "moderation";
 
@@ -80,7 +87,7 @@ const AdminPage = () => {
     if (user && user.role !== "ADMIN") navigate("/");
   }, [user, navigate]);
 
-  // ─── Статистика ───────────────────────────────────────────────────────────
+  // ─── Stats ────────────────────────────────────────────────────────────────
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -92,7 +99,7 @@ const AdminPage = () => {
       .finally(() => setStatsLoading(false));
   }, [tab]);
 
-  // ─── Пользователи ─────────────────────────────────────────────────────────
+  // ─── Users ────────────────────────────────────────────────────────────────
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersPage, setUsersPage] = useState(1);
@@ -127,7 +134,7 @@ const AdminPage = () => {
     } finally { setBanningId(null); }
   };
 
-  // ─── Модерация ────────────────────────────────────────────────────────────
+  // ─── Moderation ───────────────────────────────────────────────────────────
   const [modFilter, setModFilter] = useState<"PENDING" | "APPROVED" | "REJECTED">("PENDING");
   const [modProps, setModProps] = useState<AdminProperty[]>([]);
   const [modTotal, setModTotal] = useState(0);
@@ -180,50 +187,55 @@ const AdminPage = () => {
     } finally { setModeratingId(null); }
   };
 
-  const ROLE_COLORS: Record<string, string> = {
-    USER: "bg-gray-100 text-gray-700",
-    LANDLORD: "bg-blue-100 text-blue-700",
-    ADMIN: "bg-purple-100 text-purple-700",
+  const ROLE_CONFIG: Record<string, { label: string; cls: string }> = {
+    USER:     { label: "Арендатор", cls: "bg-gray-100 text-gray-700" },
+    LANDLORD: { label: "Арендодатель", cls: "bg-blue-100 text-blue-700" },
+    ADMIN:    { label: "Администратор", cls: "bg-violet-100 text-violet-700" },
   };
 
   const STATUS_CFG = {
-    PENDING: { label: "На проверке", bg: "bg-yellow-100", text: "text-yellow-700", icon: <Clock className="w-4 h-4" /> },
-    APPROVED: { label: "Одобрено", bg: "bg-green-100", text: "text-green-700", icon: <CheckCircle className="w-4 h-4" /> },
-    REJECTED: { label: "Отклонено", bg: "bg-red-100", text: "text-red-700", icon: <XCircle className="w-4 h-4" /> },
+    PENDING:  { label: "На проверке", bg: "bg-amber-50",   text: "text-amber-700",  border: "border-amber-200",  icon: <Clock className="w-3.5 h-3.5" /> },
+    APPROVED: { label: "Одобрено",    bg: "bg-emerald-50", text: "text-emerald-700",border: "border-emerald-200",icon: <CheckCircle className="w-3.5 h-3.5" /> },
+    REJECTED: { label: "Отклонено",   bg: "bg-red-50",     text: "text-red-700",    border: "border-red-200",    icon: <XCircle className="w-3.5 h-3.5" /> },
   };
 
   const totalUsersPages = Math.ceil(usersTotal / 15);
   const totalModPages = Math.ceil(modTotal / 10);
 
+  const TABS: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
+    { id: "stats",      label: "Статистика",    icon: <BarChart3 className="w-4 h-4" /> },
+    { id: "users",      label: "Пользователи",  icon: <Users className="w-4 h-4" /> },
+    { id: "moderation", label: "Модерация",     icon: <Home className="w-4 h-4" />, badge: stats?.pendingProperties },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        {/* Заголовок */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-1">
-            <Shield className="w-8 h-8 text-purple-600" />
-            <h1 className="text-3xl font-black text-gray-900">Панель администратора</h1>
+    <div className="min-h-screen bg-[#f8fafc]">
+      <div className="max-w-6xl mx-auto px-4 py-10">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 bg-violet-600 rounded-2xl flex items-center justify-center flex-shrink-0">
+            <Shield className="w-5 h-5 text-white" />
           </div>
-          <p className="text-gray-500 ml-11">Управление платформой DomRent</p>
+          <div>
+            <h1 className="text-2xl font-black text-gray-900">Панель администратора</h1>
+            <p className="text-gray-500 text-sm">Управление платформой DomRent</p>
+          </div>
         </div>
 
-        {/* Навигация по табам */}
-        <div className="flex gap-2 mb-8 bg-white rounded-2xl p-2 shadow-sm border border-gray-100 w-fit">
-          {([
-            { id: "stats", label: "Статистика", icon: <BarChart3 className="w-4 h-4" /> },
-            { id: "users", label: "Пользователи", icon: <Users className="w-4 h-4" /> },
-            { id: "moderation", label: "Модерация", icon: <Home className="w-4 h-4" />, badge: stats?.pendingProperties },
-          ] as { id: Tab; label: string; icon: React.ReactNode; badge?: number }[]).map(t => (
+        {/* Tab nav */}
+        <div className="flex gap-1 mb-8 bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 w-fit">
+          {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition relative ${
-                tab === t.id ? "bg-purple-600 text-white" : "text-gray-600 hover:bg-gray-100"
+              className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition ${
+                tab === t.id ? "bg-gray-900 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
               }`}
             >
               {t.icon}{t.label}
               {t.badge != null && t.badge > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                   {t.badge > 9 ? "9+" : t.badge}
                 </span>
               )}
@@ -231,124 +243,161 @@ const AdminPage = () => {
           ))}
         </div>
 
-        {/* ─── СТАТИСТИКА ──────────────────────────────────────────────────── */}
+        {/* ─── STATS ────────────────────────────────────────────────────────── */}
         {tab === "stats" && (
           statsLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader className="w-10 h-10 animate-spin text-purple-600" />
+            <div className="flex items-center justify-center py-24">
+              <Loader className="w-8 h-8 animate-spin text-gray-400" />
             </div>
           ) : stats ? (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={<Users className="w-6 h-6 text-blue-600" />} label="Пользователей" value={stats.totalUsers} sub={`+${stats.newUsers7d} за 7 дней`} color="text-blue-600" />
-                <StatCard icon={<Home className="w-6 h-6 text-green-600" />} label="Объявлений" value={stats.totalProperties} sub={`${stats.pendingProperties} на модерации`} color="text-green-600" />
-                <StatCard icon={<Calendar className="w-6 h-6 text-orange-600" />} label="Бронирований" value={stats.totalBookings} sub={`+${stats.newBookings7d} за 7 дней`} color="text-orange-600" />
-                <StatCard icon={<TrendingUp className="w-6 h-6 text-purple-600" />} label="Оборот (₸)" value={stats.totalRevenue.toLocaleString()} color="text-purple-600" />
+                <StatCard
+                  icon={<Users className="w-5 h-5 text-blue-600" />}
+                  label="Пользователей"
+                  value={stats.totalUsers}
+                  trend={`+${stats.newUsers7d} за 7д`}
+                  color="text-blue-600"
+                />
+                <StatCard
+                  icon={<Home className="w-5 h-5 text-emerald-600" />}
+                  label="Объявлений"
+                  value={stats.totalProperties}
+                  sub={`${stats.pendingProperties} на модерации`}
+                  color="text-emerald-600"
+                />
+                <StatCard
+                  icon={<Calendar className="w-5 h-5 text-orange-600" />}
+                  label="Бронирований"
+                  value={stats.totalBookings}
+                  trend={`+${stats.newBookings7d} за 7д`}
+                  color="text-orange-600"
+                />
+                <StatCard
+                  icon={<TrendingUp className="w-5 h-5 text-violet-600" />}
+                  label="Оборот"
+                  value={`${stats.totalRevenue.toLocaleString()} ₸`}
+                  color="text-violet-600"
+                />
               </div>
-              <div className="grid grid-cols-2 gap-4 max-w-sm">
-                <StatCard icon={<ShieldOff className="w-6 h-6 text-red-500" />} label="Заблокировано" value={stats.bannedUsers} color="text-red-500" />
-                <StatCard icon={<Clock className="w-6 h-6 text-yellow-600" />} label="На модерации" value={stats.pendingProperties} color="text-yellow-600" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-xl">
+                <StatCard
+                  icon={<ShieldOff className="w-5 h-5 text-red-500" />}
+                  label="Заблокировано"
+                  value={stats.bannedUsers}
+                  color="text-red-500"
+                />
+                <StatCard
+                  icon={<Clock className="w-5 h-5 text-amber-600" />}
+                  label="На модерации"
+                  value={stats.pendingProperties}
+                  color="text-amber-600"
+                />
               </div>
             </div>
-          ) : <p className="text-gray-500">Нет данных</p>
+          ) : <p className="text-gray-400 py-10 text-center">Нет данных</p>
         )}
 
-        {/* ─── ПОЛЬЗОВАТЕЛИ ────────────────────────────────────────────────── */}
+        {/* ─── USERS ────────────────────────────────────────────────────────── */}
         {tab === "users" && (
           <div>
-            {/* Поиск */}
             <div className="flex gap-3 mb-5">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   value={usersSearch}
                   onChange={e => setUsersSearch(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter") { setUsersPage(1); fetchUsers(1, usersSearch); } }}
                   placeholder="Поиск по email или имени..."
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-400 text-sm"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 bg-white rounded-2xl outline-none focus:ring-2 focus:ring-gray-900 text-sm transition-all"
                 />
               </div>
               <button
                 onClick={() => { setUsersPage(1); fetchUsers(1, usersSearch); }}
-                className="px-5 py-2.5 bg-purple-600 text-white rounded-xl font-medium text-sm hover:bg-purple-700 transition"
+                className="px-5 py-2.5 bg-gray-900 hover:bg-gray-700 text-white rounded-2xl font-semibold text-sm transition"
               >
                 Найти
               </button>
             </div>
 
-            <p className="text-sm text-gray-500 mb-3">Всего: <strong>{usersTotal}</strong></p>
+            <p className="text-sm text-gray-400 mb-3">
+              Всего: <strong className="text-gray-700">{usersTotal}</strong>
+            </p>
 
             {usersLoading ? (
-              <div className="flex justify-center py-16"><Loader className="w-8 h-8 animate-spin text-purple-600" /></div>
+              <div className="flex justify-center py-16"><Loader className="w-8 h-8 animate-spin text-gray-400" /></div>
             ) : (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
-                      {["ID", "Пользователь", "Роль", "Объекты", "Брони", "Дата", "Статус", "Действие"].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">{h}</th>
+                      {["ID", "Пользователь", "Роль", "Объекты", "Брони", "Дата", "Статус", ""].map(h => (
+                        <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {users.map(u => (
-                      <tr key={u.id} className={`hover:bg-gray-50 transition ${u.isBanned ? "opacity-60" : ""}`}>
-                        <td className="px-4 py-3 text-gray-500">#{u.id}</td>
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-gray-900">{u.name || "—"}</p>
-                          <p className="text-xs text-gray-500">{u.email}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${ROLE_COLORS[u.role] || "bg-gray-100 text-gray-700"}`}>
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">{u._count.properties}</td>
-                        <td className="px-4 py-3 text-center">{u._count.bookings}</td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">
-                          {new Date(u.createdAt).toLocaleDateString("ru-RU")}
-                        </td>
-                        <td className="px-4 py-3">
-                          {u.isBanned ? (
-                            <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">Заблокирован</span>
-                          ) : (
-                            <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Активен</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {u.role !== "ADMIN" && (
-                            <button
-                              onClick={() => handleBan(u.id, !u.isBanned)}
-                              disabled={banningId === u.id}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40 ${
-                                u.isBanned
-                                  ? "bg-green-100 text-green-700 hover:bg-green-200"
-                                  : "bg-red-100 text-red-700 hover:bg-red-200"
-                              }`}
-                            >
-                              {banningId === u.id ? <Loader className="w-3 h-3 animate-spin" /> :
-                                u.isBanned ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
-                              {u.isBanned ? "Разблокировать" : "Заблокировать"}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {users.map(u => {
+                      const roleCfg = ROLE_CONFIG[u.role] || ROLE_CONFIG.USER;
+                      return (
+                        <tr key={u.id} className={`hover:bg-gray-50/50 transition ${u.isBanned ? "opacity-50" : ""}`}>
+                          <td className="px-4 py-3.5 text-gray-400 font-mono text-xs">#{u.id}</td>
+                          <td className="px-4 py-3.5">
+                            <p className="font-semibold text-gray-900 text-sm">{u.name || "—"}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{u.email}</p>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${roleCfg.cls}`}>
+                              {roleCfg.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center font-semibold text-gray-700">{u._count.properties}</td>
+                          <td className="px-4 py-3.5 text-center font-semibold text-gray-700">{u._count.bookings}</td>
+                          <td className="px-4 py-3.5 text-gray-400 text-xs">
+                            {new Date(u.createdAt).toLocaleDateString("ru-RU")}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {u.isBanned ? (
+                              <span className="px-2.5 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold border border-red-200">Заблокирован</span>
+                            ) : (
+                              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold border border-emerald-200">Активен</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {u.role !== "ADMIN" && (
+                              <button
+                                onClick={() => handleBan(u.id, !u.isBanned)}
+                                disabled={banningId === u.id}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition disabled:opacity-40 ${
+                                  u.isBanned
+                                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                    : "bg-red-100 text-red-700 hover:bg-red-200"
+                                }`}
+                              >
+                                {banningId === u.id ? <Loader className="w-3 h-3 animate-spin" /> :
+                                  u.isBanned ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
+                                {u.isBanned ? "Разблокировать" : "Заблокировать"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* Пагинация */}
+            {/* Pagination */}
             {totalUsersPages > 1 && (
               <div className="flex items-center justify-center gap-3 mt-5">
                 <button onClick={() => setUsersPage(p => Math.max(1, p - 1))} disabled={usersPage === 1}
-                  className="p-2 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50">
+                  className="p-2 rounded-xl border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-sm text-gray-600">Стр. {usersPage} / {totalUsersPages}</span>
+                <span className="text-sm text-gray-600 font-medium">{usersPage} / {totalUsersPages}</span>
                 <button onClick={() => setUsersPage(p => Math.min(totalUsersPages, p + 1))} disabled={usersPage === totalUsersPages}
-                  className="p-2 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50">
+                  className="p-2 rounded-xl border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition">
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -356,10 +405,10 @@ const AdminPage = () => {
           </div>
         )}
 
-        {/* ─── МОДЕРАЦИЯ ───────────────────────────────────────────────────── */}
+        {/* ─── MODERATION ───────────────────────────────────────────────────── */}
         {tab === "moderation" && (
           <div>
-            {/* Фильтр по статусу */}
+            {/* Status filter */}
             <div className="flex gap-2 mb-5">
               {(["PENDING", "APPROVED", "REJECTED"] as const).map(s => {
                 const cfg = STATUS_CFG[s];
@@ -367,9 +416,9 @@ const AdminPage = () => {
                   <button
                     key={s}
                     onClick={() => { setModFilter(s); setModPage(1); }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition border ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold transition border ${
                       modFilter === s
-                        ? `${cfg.bg} ${cfg.text} border-transparent`
+                        ? `${cfg.bg} ${cfg.text} ${cfg.border}`
                         : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
                     }`}
                   >
@@ -379,113 +428,119 @@ const AdminPage = () => {
               })}
             </div>
 
-            <p className="text-sm text-gray-500 mb-4">Найдено: <strong>{modTotal}</strong></p>
+            <p className="text-sm text-gray-400 mb-4">
+              Найдено: <strong className="text-gray-700">{modTotal}</strong>
+            </p>
 
             {modLoading ? (
-              <div className="flex justify-center py-16"><Loader className="w-8 h-8 animate-spin text-purple-600" /></div>
+              <div className="flex justify-center py-16"><Loader className="w-8 h-8 animate-spin text-gray-400" /></div>
             ) : modProps.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-300" />
-                <p className="font-medium">Нет объявлений со статусом «{STATUS_CFG[modFilter].label}»</p>
+              <div className="text-center py-20">
+                <div className="w-14 h-14 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-7 h-7 text-gray-300" />
+                </div>
+                <p className="text-gray-400 font-medium">Нет объявлений со статусом «{STATUS_CFG[modFilter].label}»</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {modProps.map(p => {
                   const cfg = STATUS_CFG[p.status];
                   const cover = p.coverImage || p.images?.[0];
                   return (
-                    <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                      <div className="flex gap-4 p-4">
-                        {/* Фото */}
-                        <div className="w-28 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
+                    <div key={p.id} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden hover:shadow-card-hover transition-all">
+                      <div className="flex gap-0">
+                        {/* Photo */}
+                        <div className="w-36 flex-shrink-0 bg-gray-100 min-h-[120px]">
                           {cover ? (
                             <img src={cover} alt="" className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">Нет фото</div>
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <Home className="w-8 h-8" />
+                            </div>
                           )}
                         </div>
-                        {/* Инфо */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <h3 className="font-bold text-gray-900 text-sm truncate">{p.title}</h3>
-                            <span className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+
+                        {/* Info */}
+                        <div className="flex-1 p-4 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className="font-bold text-gray-900 text-sm leading-snug line-clamp-2 flex-1">{p.title}</h3>
+                            <span className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
                               {cfg.icon}{cfg.label}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500 mb-1">{p.city?.name} · {p.type} · {p.price.toLocaleString()} ₸</p>
+
+                          <p className="text-xs text-gray-500 mb-1">{p.city?.name} · {p.type}</p>
+                          <p className="text-sm font-bold text-gray-900 mb-1">{p.price.toLocaleString()} ₸</p>
                           <p className="text-xs text-gray-400">
-                            Владелец: <span className="text-gray-700 font-medium">{p.owner?.name || p.owner?.email}</span>
+                            <span className="font-medium text-gray-600">{p.owner?.name || p.owner?.email}</span>
+                            {" · "}{new Date(p.createdAt).toLocaleDateString("ru-RU")}
                           </p>
-                          <p className="text-xs text-gray-400">{new Date(p.createdAt).toLocaleDateString("ru-RU")}</p>
+
                           {p.rejectionReason && (
-                            <p className="text-xs text-red-600 mt-1 flex gap-1">
+                            <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded-xl px-2.5 py-2">
                               <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                              <span>{p.rejectionReason}</span>
-                            </p>
+                              <span className="line-clamp-2">{p.rejectionReason}</span>
+                            </div>
                           )}
+
+                          <div className="flex gap-2 mt-3">
+                            {p.status === "PENDING" && (
+                              <>
+                                <button
+                                  onClick={() => handleApprove(p.id)}
+                                  disabled={moderatingId === p.id}
+                                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition disabled:opacity-50"
+                                >
+                                  {moderatingId === p.id ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                                  Одобрить
+                                </button>
+                                <button
+                                  onClick={() => setRejectModal({ id: p.id, title: p.title })}
+                                  disabled={moderatingId === p.id}
+                                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-xl transition disabled:opacity-50"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  Отклонить
+                                </button>
+                              </>
+                            )}
+                            {p.status === "REJECTED" && (
+                              <button
+                                onClick={() => handleApprove(p.id)}
+                                disabled={moderatingId === p.id}
+                                className="flex items-center gap-1.5 py-1.5 px-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs font-semibold rounded-xl transition"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" /> Одобрить всё же
+                              </button>
+                            )}
+                            {p.status === "APPROVED" && (
+                              <button
+                                onClick={() => setRejectModal({ id: p.id, title: p.title })}
+                                disabled={moderatingId === p.id}
+                                className="flex items-center gap-1.5 py-1.5 px-3 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-xl transition"
+                              >
+                                <XCircle className="w-3.5 h-3.5" /> Снять с публикации
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-
-                      {/* Действия */}
-                      {p.status === "PENDING" && (
-                        <div className="flex gap-2 px-4 pb-4">
-                          <button
-                            onClick={() => handleApprove(p.id)}
-                            disabled={moderatingId === p.id}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50"
-                          >
-                            {moderatingId === p.id ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                            Одобрить
-                          </button>
-                          <button
-                            onClick={() => setRejectModal({ id: p.id, title: p.title })}
-                            disabled={moderatingId === p.id}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-xl transition disabled:opacity-50"
-                          >
-                            <XCircle className="w-4 h-4" />
-                            Отклонить
-                          </button>
-                        </div>
-                      )}
-                      {p.status !== "PENDING" && (
-                        <div className="px-4 pb-4 flex gap-2">
-                          {/* Re-moderate already processed */}
-                          {p.status === "REJECTED" && (
-                            <button
-                              onClick={() => handleApprove(p.id)}
-                              disabled={moderatingId === p.id}
-                              className="flex items-center gap-1.5 py-2 px-4 bg-green-100 hover:bg-green-200 text-green-700 text-sm font-semibold rounded-xl transition"
-                            >
-                              <CheckCircle className="w-4 h-4" /> Одобрить всё же
-                            </button>
-                          )}
-                          {p.status === "APPROVED" && (
-                            <button
-                              onClick={() => setRejectModal({ id: p.id, title: p.title })}
-                              disabled={moderatingId === p.id}
-                              className="flex items-center gap-1.5 py-2 px-4 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-xl transition"
-                            >
-                              <XCircle className="w-4 h-4" /> Снять с публикации
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
               </div>
             )}
 
-            {/* Пагинация модерации */}
+            {/* Moderation pagination */}
             {totalModPages > 1 && (
               <div className="flex items-center justify-center gap-3 mt-5">
                 <button onClick={() => setModPage(p => Math.max(1, p - 1))} disabled={modPage === 1}
-                  className="p-2 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50">
+                  className="p-2 rounded-xl border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-sm text-gray-600">Стр. {modPage} / {totalModPages}</span>
+                <span className="text-sm text-gray-600 font-medium">{modPage} / {totalModPages}</span>
                 <button onClick={() => setModPage(p => Math.min(totalModPages, p + 1))} disabled={modPage === totalModPages}
-                  className="p-2 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50">
+                  className="p-2 rounded-xl border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition">
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -494,30 +549,30 @@ const AdminPage = () => {
         )}
       </div>
 
-      {/* Модал: причина отклонения */}
+      {/* Reject Modal */}
       {rejectModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-modal animate-slide-up">
             <h2 className="text-xl font-bold text-gray-900 mb-1">Отклонить объявление</h2>
-            <p className="text-gray-500 text-sm mb-4">«{rejectModal.title}»</p>
+            <p className="text-gray-400 text-sm mb-4">«{rejectModal.title}»</p>
             <textarea
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
               placeholder="Укажите причину отклонения (видна арендодателю)..."
               rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-red-400 resize-none mb-4 text-sm"
+              className="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white resize-none mb-4 text-sm transition-all"
             />
             <div className="flex gap-3">
               <button
                 onClick={() => { setRejectModal(null); setRejectReason(""); }}
-                className="flex-1 py-2.5 border border-gray-300 rounded-xl text-gray-700 font-medium text-sm hover:bg-gray-50 transition"
+                className="flex-1 py-3 border border-gray-200 rounded-2xl text-gray-700 font-semibold text-sm hover:bg-gray-50 transition"
               >
                 Отмена
               </button>
               <button
                 onClick={handleReject}
                 disabled={moderatingId === rejectModal.id}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm transition disabled:opacity-50"
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold text-sm transition disabled:opacity-50"
               >
                 {moderatingId === rejectModal.id ? "Обработка..." : "Отклонить"}
               </button>

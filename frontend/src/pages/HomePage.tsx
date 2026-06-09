@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Loader, AlertCircle, Filter, X, Heart, Wifi, Car, PawPrint, BedDouble } from "lucide-react";
+import { MapPin, Loader, AlertCircle, X, Heart, Wifi, Car, PawPrint, BedDouble, SlidersHorizontal, Search } from "lucide-react";
 import axiosInstance from "../api/axios";
 import type { Property } from "../types";
 
@@ -16,21 +16,11 @@ interface FilterState {
   petsAllowed: boolean;
 }
 
-interface City {
-  id: number;
-  name: string;
-}
+interface City { id: number; name: string; }
 
 const EMPTY_FILTERS: FilterState = {
-  city: "",
-  contractType: "",
-  type: "",
-  minPrice: "",
-  maxPrice: "",
-  rooms: "",
-  hasWifi: false,
-  hasParking: false,
-  petsAllowed: false,
+  city: "", contractType: "", type: "", minPrice: "", maxPrice: "",
+  rooms: "", hasWifi: false, hasParking: false, petsAllowed: false,
 };
 
 const HomePage = () => {
@@ -41,32 +31,26 @@ const HomePage = () => {
   const [cities, setCities] = useState<City[]>([]);
   const [citiesLoading, setCitiesLoading] = useState(true);
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
-
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
 
-  const fetchProperties = useCallback(async (filtersToUse?: FilterState) => {
+  const fetchProperties = useCallback(async (f?: FilterState) => {
     try {
       setLoading(true);
       setError(null);
-
-      const f = filtersToUse ?? filters;
+      const active = f ?? filters;
       const q = new URLSearchParams();
-      if (f.city)         q.set("city", f.city);
-      if (f.contractType) q.set("contractType", f.contractType);
-      if (f.type)         q.set("type", f.type);
-      if (f.minPrice)     q.set("minPrice", f.minPrice);
-      if (f.maxPrice)     q.set("maxPrice", f.maxPrice);
-      if (f.rooms)        q.set("rooms", f.rooms);
-      if (f.hasWifi)      q.set("hasWifi", "true");
-      if (f.hasParking)   q.set("hasParking", "true");
-      if (f.petsAllowed)  q.set("petsAllowed", "true");
-
-      const url = `/properties${q.toString() ? `?${q}` : ""}`;
-      const res = await axiosInstance.get(url);
-      const data = Array.isArray(res.data) ? res.data : res.data.properties || [];
-      setProperties(data);
+      if (active.city)         q.set("city", active.city);
+      if (active.contractType) q.set("contractType", active.contractType);
+      if (active.type)         q.set("type", active.type);
+      if (active.minPrice)     q.set("minPrice", active.minPrice);
+      if (active.maxPrice)     q.set("maxPrice", active.maxPrice);
+      if (active.rooms)        q.set("rooms", active.rooms);
+      if (active.hasWifi)      q.set("hasWifi", "true");
+      if (active.hasParking)   q.set("hasParking", "true");
+      if (active.petsAllowed)  q.set("petsAllowed", "true");
+      const res = await axiosInstance.get(`/properties${q.toString() ? `?${q}` : ""}`);
+      setProperties(Array.isArray(res.data) ? res.data : res.data.properties || []);
     } catch (err: unknown) {
-      console.error(err);
       setError(err instanceof Error ? err.message : "Не удалось загрузить объекты");
     } finally {
       setLoading(false);
@@ -77,15 +61,13 @@ const HomePage = () => {
     try {
       const res = await axiosInstance.get("/cities");
       setCities(res.data.cities || []);
-    } catch { /* silent */ }
-    finally { setCitiesLoading(false); }
+    } catch { /* silent */ } finally { setCitiesLoading(false); }
   }, []);
 
   const fetchFavorites = useCallback(async () => {
     try {
       const res = await axiosInstance.get("/favorites");
-      const ids = new Set<number>((res.data.favorites || []).map((f: any) => f.propertyId));
-      setFavorites(ids);
+      setFavorites(new Set<number>((res.data.favorites || []).map((f: any) => f.propertyId)));
     } catch { /* silent */ }
   }, []);
 
@@ -93,305 +75,311 @@ const HomePage = () => {
     Promise.all([fetchProperties(), fetchCities(), fetchFavorites()]);
   }, []); // eslint-disable-line
 
-  const handleApplyFilters = () => {
-    fetchProperties(filters);
-    setShowFilters(false);
-  };
-
-  const handleResetFilters = () => {
-    setFilters(EMPTY_FILTERS);
-    fetchProperties(EMPTY_FILTERS);
-  };
-
   const handleToggleFavorite = async (propertyId: number, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     try {
       await axiosInstance.post(`/favorites/toggle/${propertyId}`);
-      setFavorites(prev => {
-        const s = new Set(prev);
-        s.has(propertyId) ? s.delete(propertyId) : s.add(propertyId);
-        return s;
-      });
+      setFavorites(prev => { const s = new Set(prev); s.has(propertyId) ? s.delete(propertyId) : s.add(propertyId); return s; });
     } catch { /* silent */ }
   };
 
-  const getPriceText = (p: Property) =>
-    p.contractType === "RENT" ? `${p.price.toLocaleString()} ₸/ночь` : `${p.price.toLocaleString()} ₸`;
+  const handleApply = () => { fetchProperties(filters); setShowFilters(false); };
+  const handleReset = () => { setFilters(EMPTY_FILTERS); fetchProperties(EMPTY_FILTERS); };
 
-  const getCityName = (p: Property) =>
-    typeof p.city === "object" && p.city?.name ? p.city.name : (p.city as string) || "Город не указан";
+  const getPriceText = (p: Property) => p.contractType === "RENT" ? `${p.price.toLocaleString()} ₸/ночь` : `${p.price.toLocaleString()} ₸`;
+  const getCityName = (p: Property) => typeof p.city === "object" && p.city?.name ? p.city.name : (p.city as string) || "";
+  const hasActive = Object.entries(filters).some(([, v]) => v !== "" && v !== false);
+  const activeCount = Object.entries(filters).filter(([, v]) => v !== "" && v !== false).length;
 
-  const hasActiveFilters = Object.entries(filters).some(([, v]) => v !== "" && v !== false);
-
-  if (error && properties.length === 0) {
-    return (
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <div className="text-center bg-red-50 p-8 rounded-2xl border border-red-100 max-w-md">
-          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-600" />
-          <p className="text-red-700 font-medium mb-2">Ошибка загрузки данных</p>
-          <p className="text-red-500 text-sm mb-6">{error}</p>
-          <button onClick={() => fetchProperties()} className="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition">
-            Попробовать снова
-          </button>
-        </div>
+  if (error && properties.length === 0) return (
+    <div className="flex justify-center items-center min-h-[60vh]">
+      <div className="text-center bg-white p-8 rounded-3xl shadow-card max-w-md">
+        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
+        <p className="text-gray-700 font-semibold mb-2">Не удалось загрузить объявления</p>
+        <p className="text-gray-400 text-sm mb-6">{error}</p>
+        <button onClick={() => fetchProperties()} className="px-6 py-2.5 bg-gray-900 text-white rounded-2xl hover:bg-gray-700 transition-colors text-sm font-semibold">
+          Попробовать снова
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-3">Найдите жилье своей мечты</h1>
-        <p className="text-lg text-gray-600">Обзор доступных объектов недвижимости в Казахстане</p>
+    <div className="min-h-screen">
+      {/* ── Hero ──────────────────────────────────────────────────────────────── */}
+      <div className="bg-gradient-to-b from-gray-900 to-gray-800 text-white py-16 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-4xl sm:text-5xl font-black mb-4 leading-tight">
+            Найдите жильё своей мечты
+          </h1>
+          <p className="text-gray-300 text-lg mb-10">
+            Тысячи объявлений об аренде и продаже в Казахстане
+          </p>
+
+          {/* Quick search bar */}
+          <div className="bg-white rounded-2xl p-2 flex gap-2 max-w-2xl mx-auto shadow-modal">
+            <select
+              value={filters.city}
+              onChange={e => setFilters(p => ({ ...p, city: e.target.value }))}
+              disabled={citiesLoading}
+              className="flex-1 px-4 py-3 text-gray-800 text-sm font-medium outline-none bg-transparent cursor-pointer"
+            >
+              <option value="">📍 Все города</option>
+              {cities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+            <div className="w-px bg-gray-100 my-1" />
+            <select
+              value={filters.contractType}
+              onChange={e => setFilters(p => ({ ...p, contractType: e.target.value }))}
+              className="px-4 py-3 text-gray-800 text-sm font-medium outline-none bg-transparent cursor-pointer"
+            >
+              <option value="">Все типы</option>
+              <option value="RENT">Аренда</option>
+              <option value="SALE">Продажа</option>
+            </select>
+            <button
+              onClick={handleApply}
+              className="px-5 py-3 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-colors flex-shrink-0"
+            >
+              <Search className="w-4 h-4" />
+              <span className="hidden sm:inline">Найти</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* FilterBar */}
-      <div className="mb-8">
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="lg:hidden mb-4 w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition"
-        >
-          <Filter className="w-5 h-5" />
-          {showFilters ? "Скрыть фильтры" : "Показать фильтры"}
-          {hasActiveFilters && <span className="ml-1 w-2 h-2 rounded-full bg-yellow-400" />}
-        </button>
-
-        <div className={`bg-white rounded-2xl shadow-md border border-gray-200 p-6 transition-all ${showFilters ? "block" : "hidden lg:block"}`}>
-          {/* Строка 1: основные фильтры */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
-            {/* Тип сделки */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Тип сделки</label>
-              <select
-                value={filters.contractType}
-                onChange={e => setFilters(p => ({ ...p, contractType: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-              >
-                <option value="">Все</option>
-                <option value="RENT">🔑 Аренда</option>
-                <option value="SALE">🏠 Продажа</option>
-              </select>
-            </div>
-
-            {/* Город */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Город</label>
-              <select
-                value={filters.city}
-                onChange={e => setFilters(p => ({ ...p, city: e.target.value }))}
-                disabled={citiesLoading}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-              >
-                <option value="">Все города</option>
-                {cities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-              </select>
-            </div>
-
-            {/* Тип жилья */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Тип жилья</label>
-              <select
-                value={filters.type}
-                onChange={e => setFilters(p => ({ ...p, type: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-              >
-                <option value="">Все</option>
-                <option value="квартира">🏢 Квартира</option>
-                <option value="дом">🏡 Дом</option>
-                <option value="комната">🛏️ Комната</option>
-              </select>
-            </div>
-
-            {/* Комнат */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                <BedDouble className="inline w-3 h-3 mr-1" />Комнат
-              </label>
-              <select
-                value={filters.rooms}
-                onChange={e => setFilters(p => ({ ...p, rooms: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-              >
-                <option value="">Любое</option>
-                {[1, 2, 3, 4, 5].map(n => <option key={n} value={String(n)}>{n} {n === 5 ? "+" : ""} комн.</option>)}
-              </select>
-            </div>
-
-            {/* Мин. цена */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Цена от (₸)</label>
-              <input
-                type="number"
-                placeholder="10 000"
-                value={filters.minPrice}
-                onChange={e => setFilters(p => ({ ...p, minPrice: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            {/* Макс. цена */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Цена до (₸)</label>
-              <input
-                type="number"
-                placeholder="100 000"
-                value={filters.maxPrice}
-                onChange={e => setFilters(p => ({ ...p, maxPrice: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-          </div>
-
-          {/* Строка 2: удобства (чекбоксы) */}
-          <div className="flex flex-wrap gap-3 mb-5">
-            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide self-center mr-1">Удобства:</span>
-            {([
-              { key: "hasWifi",     label: "Wi-Fi",    icon: <Wifi className="w-3.5 h-3.5" />     },
-              { key: "hasParking",  label: "Парковка", icon: <Car className="w-3.5 h-3.5" />       },
-              { key: "petsAllowed", label: "Животные", icon: <PawPrint className="w-3.5 h-3.5" /> },
-            ] as { key: keyof FilterState; label: string; icon: React.ReactNode }[]).map(({ key, label, icon }) => (
+      {/* ── Content ───────────────────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {/* Filter toolbar */}
+        <div className="flex items-center justify-between mb-6 gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-1">
+            {/* Type chips */}
+            {["квартира", "дом", "комната"].map(t => (
               <button
-                key={key}
-                type="button"
-                onClick={() => setFilters(p => ({ ...p, [key]: !p[key] }))}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition ${
-                  filters[key]
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                key={t}
+                onClick={() => {
+                  const next = filters.type === t ? "" : t;
+                  const updated = { ...filters, type: next };
+                  setFilters(updated);
+                  fetchProperties(updated);
+                }}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all ${
+                  filters.type === t
+                    ? "bg-gray-900 text-white border-gray-900"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
                 }`}
               >
-                {icon}{label}
+                {t === "квартира" ? "🏢" : t === "дом" ? "🏡" : "🛏️"} {t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
             ))}
           </div>
 
-          {/* Кнопки */}
-          <div className="flex gap-3 flex-col sm:flex-row">
-            <button
-              onClick={handleApplyFilters}
-              disabled={loading}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? <><Loader className="w-4 h-4 animate-spin" />Поиск...</> : "🔍 Применить фильтры"}
-            </button>
-            <button
-              onClick={handleResetFilters}
-              disabled={loading}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <X className="w-4 h-4" />Сбросить
-            </button>
-          </div>
-
-          {/* Активные фильтры */}
-          {hasActiveFilters && (
-            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
-              {filters.contractType && <Tag label={filters.contractType === "RENT" ? "Аренда" : "Продажа"} />}
-              {filters.city && <Tag label={`Город: ${filters.city}`} />}
-              {filters.type && <Tag label={`Тип: ${filters.type}`} />}
-              {filters.rooms && <Tag label={`${filters.rooms} комн.`} />}
-              {filters.minPrice && <Tag label={`от ${Number(filters.minPrice).toLocaleString()} ₸`} />}
-              {filters.maxPrice && <Tag label={`до ${Number(filters.maxPrice).toLocaleString()} ₸`} />}
-              {filters.hasWifi && <Tag label="Wi-Fi" />}
-              {filters.hasParking && <Tag label="Парковка" />}
-              {filters.petsAllowed && <Tag label="Животные" />}
-            </div>
-          )}
+          <button
+            onClick={() => setShowFilters(o => !o)}
+            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-semibold transition-all ${
+              hasActive
+                ? "bg-gray-900 text-white border-gray-900"
+                : "bg-white text-gray-700 border-gray-200 hover:border-gray-400"
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            Фильтры
+            {activeCount > 0 && (
+              <span className="w-5 h-5 bg-brand-500 text-white text-xs rounded-full flex items-center justify-center">{activeCount}</span>
+            )}
+          </button>
         </div>
-      </div>
 
-      {/* Loading */}
-      {loading && properties.length === 0 && (
-        <div className="flex justify-center items-center min-h-[40vh]">
-          <div className="text-center">
-            <Loader className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-            <p className="text-gray-600 font-medium">Загрузка объектов...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Grid */}
-      {!loading && (
-        <>
-          {properties.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-dashed">
-              <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p className="text-gray-400 text-xl font-medium">Объекты не найдены. Попробуйте изменить фильтры</p>
-            </div>
-          ) : (
-            <div>
-              <p className="text-gray-600 font-medium mb-6">
-                Найдено объектов: <span className="text-blue-600 font-bold">{properties.length}</span>
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {properties.map(property => (
-                  <Link
-                    key={property.id}
-                    to={`/property/${property.id}`}
-                    className="bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100 group block"
-                  >
-                    <div className="relative overflow-hidden">
-                      {(property.coverImage || property.images?.[0]) ? (
-                        <img
-                          src={property.coverImage || property.images[0]}
-                          alt={property.title}
-                          className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="w-full h-56 bg-gray-100 flex items-center justify-center">
-                          <span className="text-gray-400 font-medium">Нет фотографии</span>
-                        </div>
-                      )}
-                      {/* Избранное */}
-                      <button
-                        onClick={e => handleToggleFavorite(property.id, e)}
-                        className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full p-2 hover:bg-white transition shadow-md"
-                      >
-                        <Heart size={20} className={favorites.has(property.id) ? "text-red-600 fill-red-600" : "text-gray-400"} />
-                      </button>
-                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-blue-600 px-3 py-1 rounded-full text-xs font-bold uppercase shadow-sm">
-                        {property.type}
-                      </div>
-                    </div>
-                    <div className="p-6">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">{property.title}</h3>
-                      <p className="text-gray-500 text-sm mb-3 line-clamp-2 h-10">{property.description}</p>
-                      <div className="flex items-center text-gray-400 mb-3">
-                        <MapPin className="w-4 h-4 mr-1.5 text-blue-500" />
-                        <span className="text-sm font-medium">{getCityName(property)}</span>
-                        {property.rooms && (
-                          <span className="ml-3 flex items-center gap-1 text-xs text-gray-400">
-                            <BedDouble className="w-3.5 h-3.5" />{property.rooms} комн.
-                          </span>
-                        )}
-                      </div>
-                      {/* Иконки удобств */}
-                      {(property.hasWifi || property.hasParking || property.petsAllowed) && (
-                        <div className="flex gap-2 mb-3">
-                          {property.hasWifi && <span className="flex items-center gap-1 text-xs text-blue-500"><Wifi className="w-3.5 h-3.5" />Wi-Fi</span>}
-                          {property.hasParking && <span className="flex items-center gap-1 text-xs text-gray-500"><Car className="w-3.5 h-3.5" />Парковка</span>}
-                          {property.petsAllowed && <span className="flex items-center gap-1 text-xs text-green-500"><PawPrint className="w-3.5 h-3.5" />Животные</span>}
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center pt-4 border-t border-gray-50">
-                        <span className="text-2xl font-black text-gray-900">{getPriceText(property)}</span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+        {/* Expanded filters */}
+        {showFilters && (
+          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-6 mb-6 animate-slide-up">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Тип жилья</label>
+                <select value={filters.type} onChange={e => setFilters(p => ({ ...p, type: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-900">
+                  <option value="">Все</option>
+                  <option value="квартира">🏢 Квартира</option>
+                  <option value="дом">🏡 Дом</option>
+                  <option value="комната">🛏️ Комната</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+                  <BedDouble className="inline w-3 h-3 mr-1" />Комнат
+                </label>
+                <select value={filters.rooms} onChange={e => setFilters(p => ({ ...p, rooms: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-900">
+                  <option value="">Любое</option>
+                  {[1,2,3,4,5].map(n => <option key={n} value={String(n)}>{n}{n===5?"+":""} комн.</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Цена от (₸)</label>
+                <input type="number" placeholder="0" value={filters.minPrice}
+                  onChange={e => setFilters(p => ({ ...p, minPrice: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-900" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Цена до (₸)</label>
+                <input type="number" placeholder="∞" value={filters.maxPrice}
+                  onChange={e => setFilters(p => ({ ...p, maxPrice: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-900" />
+              </div>
+              <div className="flex flex-col gap-2 justify-end">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Удобства</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    { key: "hasWifi", icon: <Wifi className="w-3 h-3" />, label: "Wi-Fi" },
+                    { key: "hasParking", icon: <Car className="w-3 h-3" />, label: "Парковка" },
+                    { key: "petsAllowed", icon: <PawPrint className="w-3 h-3" />, label: "Животные" },
+                  ] as { key: keyof FilterState; icon: React.ReactNode; label: string }[]).map(({ key, icon, label }) => (
+                    <button key={key} type="button"
+                      onClick={() => setFilters(p => ({ ...p, [key]: !p[key] }))}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                        filters[key] ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                      }`}
+                    >
+                      {icon}{label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          )}
-        </>
-      )}
+            <div className="flex gap-3 pt-4 border-t border-gray-100">
+              <button onClick={handleApply} disabled={loading}
+                className="flex-1 py-2.5 bg-gray-900 hover:bg-gray-700 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {loading ? <Loader className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                Применить
+              </button>
+              <button onClick={handleReset}
+                className="px-5 py-2.5 border border-gray-200 hover:border-gray-400 text-gray-600 font-semibold rounded-xl text-sm transition-colors flex items-center gap-2">
+                <X className="w-4 h-4" />Сбросить
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Results count */}
+        {!loading && (
+          <p className="text-sm text-gray-500 mb-5">
+            {properties.length > 0
+              ? <><span className="font-semibold text-gray-900">{properties.length}</span> объявлений найдено</>
+              : "Объявлений не найдено"}
+          </p>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex justify-center py-20">
+            <div className="text-center">
+              <Loader className="w-10 h-10 animate-spin mx-auto mb-3 text-gray-400" />
+              <p className="text-gray-500 text-sm">Загрузка...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Empty */}
+        {!loading && properties.length === 0 && (
+          <div className="text-center py-20 bg-white rounded-3xl shadow-card">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <MapPin className="w-8 h-8 text-gray-300" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Ничего не найдено</h3>
+            <p className="text-gray-400 text-sm mb-6">Попробуйте изменить параметры поиска</p>
+            <button onClick={handleReset} className="px-6 py-2.5 bg-gray-900 text-white rounded-2xl text-sm font-semibold hover:bg-gray-700 transition-colors">
+              Сбросить фильтры
+            </button>
+          </div>
+        )}
+
+        {/* Property grid */}
+        {!loading && properties.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {properties.map(property => (
+              <Link
+                key={property.id}
+                to={`/property/${property.id}`}
+                className="group block bg-white rounded-3xl shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden"
+              >
+                {/* Image */}
+                <div className="relative overflow-hidden aspect-[4/3] bg-gray-100">
+                  {(property.coverImage || property.images?.[0]) ? (
+                    <img
+                      src={property.coverImage || property.images[0]}
+                      alt={property.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <MapPin className="w-10 h-10 text-gray-200" />
+                    </div>
+                  )}
+
+                  {/* Favorite */}
+                  <button
+                    onClick={e => handleToggleFavorite(property.id, e)}
+                    className="absolute top-3 right-3 w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
+                  >
+                    <Heart
+                      className={`w-4.5 h-4.5 transition-colors ${favorites.has(property.id) ? "fill-brand-500 text-brand-500" : "text-gray-500"}`}
+                      style={{ width: 18, height: 18 }}
+                    />
+                  </button>
+
+                  {/* Type badge */}
+                  <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-bold text-gray-700 capitalize">
+                    {property.type}
+                  </div>
+
+                  {/* Contract type */}
+                  {property.contractType === "SALE" && (
+                    <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-gray-900/80 backdrop-blur-sm rounded-full text-xs font-bold text-white">
+                      Продажа
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <h3 className="font-semibold text-gray-900 text-sm line-clamp-1 flex-1">{property.title}</h3>
+                  </div>
+
+                  <div className="flex items-center gap-1 text-gray-500 text-xs mb-2">
+                    <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                    <span className="line-clamp-1">{getCityName(property)}</span>
+                    {property.rooms && (
+                      <span className="ml-2 flex items-center gap-0.5">
+                        <BedDouble className="w-3 h-3" />{property.rooms} к.
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Amenities */}
+                  {(property.hasWifi || property.hasParking || property.petsAllowed) && (
+                    <div className="flex gap-2 mb-2">
+                      {property.hasWifi && <Wifi className="w-3.5 h-3.5 text-blue-400" />}
+                      {property.hasParking && <Car className="w-3.5 h-3.5 text-gray-400" />}
+                      {property.petsAllowed && <PawPrint className="w-3.5 h-3.5 text-green-400" />}
+                    </div>
+                  )}
+
+                  <p className="font-bold text-gray-900 text-base mt-auto">{getPriceText(property)}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-// Маленький тег для активных фильтров
 const Tag = ({ label }: { label: string }) => (
-  <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">{label}</span>
+  <span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">{label}</span>
 );
+void Tag; // prevent unused warning
 
 export default HomePage;
