@@ -32,7 +32,7 @@ const LoginPage = () => {
   return (
     <div className="min-h-[calc(100vh-64px)] flex">
       {/* Left — decorative */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex-col justify-between p-12">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 flex-col justify-between p-12">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center">
             <Home className="w-5 h-5 text-white" />
@@ -63,7 +63,7 @@ const LoginPage = () => {
       </div>
 
       {/* Right — form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-white">
+      <div className="flex-1 flex items-center justify-center p-6 bg-white dark:bg-gray-950">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
@@ -73,8 +73,8 @@ const LoginPage = () => {
             <span className="text-xl font-bold text-gray-900">DomRent</span>
           </div>
 
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Добро пожаловать</h1>
-          <p className="text-gray-500 mb-8">Войдите в свой аккаунт</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Добро пожаловать</h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-8">Войдите в свой аккаунт</p>
 
           {error && (
             <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-2xl">
@@ -84,19 +84,19 @@ const LoginPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Email</label>
               <input
                 type="email"
                 placeholder="example@mail.com"
                 value={formData.email}
                 onChange={e => setFormData({ ...formData, email: e.target.value })}
                 required
-                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400"
+                className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent transition-all placeholder:text-gray-400"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Пароль</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Пароль</label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -104,7 +104,7 @@ const LoginPage = () => {
                   value={formData.password}
                   onChange={e => setFormData({ ...formData, password: e.target.value })}
                   required
-                  className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400 pr-12"
+                  className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent transition-all placeholder:text-gray-400 pr-12"
                 />
                 <button
                   type="button"

@@ -7,6 +7,7 @@ import {
   getPropertiesAdmin,
   approveProperty,
   rejectProperty,
+  getAuditLog,
 } from '../controllers/adminController.js';
 import { authenticateToken } from '../middlewares/auth.js';
 import { requireAdmin } from '../middlewares/requireRole.js';
@@ -28,5 +29,8 @@ router.patch('/users/:id/role', changeUserRole);
 router.get('/properties', getPropertiesAdmin);
 router.patch('/properties/:id/approve', approveProperty);
 router.patch('/properties/:id/reject', rejectProperty);
+
+// Журнал действий администраторов
+router.get('/audit', getAuditLog);
 
 export default router;

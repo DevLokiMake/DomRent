@@ -1,0 +1,269 @@
+{
+  "nav": {
+    "home": "Home",
+    "bookings": "Bookings",
+    "favorites": "Favorites",
+    "createListing": "List your home",
+    "admin": "Admin Panel",
+    "login": "Sign in",
+    "register": "Sign up",
+    "logout": "Sign out",
+    "profile": "Profile",
+    "myListings": "My listings"
+  },
+  "home": {
+    "hero": {
+      "title": "Find your perfect home",
+      "subtitle": "Thousands of verified rental and sale listings across Kazakhstan",
+      "searchPlaceholder": "City",
+      "searchBtn": "Search",
+      "stats": {
+        "listings": "Listings",
+        "landlords": "Landlords",
+        "cities": "Cities"
+      }
+    },
+    "filters": {
+      "title": "Filters",
+      "minPrice": "Min price (₸)",
+      "maxPrice": "Max price (₸)",
+      "rooms": "Rooms",
+      "anyRooms": "Any",
+      "wifi": "Wi-Fi",
+      "parking": "Parking",
+      "pets": "Pets",
+      "apply": "Apply",
+      "reset": "Reset",
+      "activeFilters": "Filters active"
+    },
+    "propertyTypes": {
+      "all": "All",
+      "apartment": "Apartment",
+      "house": "House",
+      "room": "Room"
+    },
+    "contractTypes": {
+      "all": "All",
+      "rent": "Rent",
+      "sale": "Sale"
+    },
+    "noResults": "No listings found. Try adjusting your filters.",
+    "perNight": "/ night",
+    "loading": "Loading listings..."
+  },
+  "booking": {
+    "status": {
+      "UPCOMING": "Upcoming",
+      "ACTIVE": "Active",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled"
+    },
+    "filter": {
+      "ALL": "All",
+      "UPCOMING": "Upcoming",
+      "ACTIVE": "Active",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled"
+    },
+    "myTrips": "My trips",
+    "manageRentals": "Manage rentals",
+    "title": "Bookings",
+    "subtitle": "Manage your trips and rentals",
+    "noBookings": "No bookings",
+    "noTripsMsg": "You haven't booked any accommodation yet. Start searching!",
+    "noRentalsMsg": "No bookings for your properties yet.",
+    "total": "Total paid",
+    "nights": "n.",
+    "income": "Income",
+    "tenant": "Guest",
+    "chat": "Chat",
+    "writeToTenant": "Message guest",
+    "leaveReview": "Review",
+    "cancel": "Cancel",
+    "cancelConfirm": "Are you sure you want to cancel this booking?",
+    "book": "Book now",
+    "bookDates": "Select dates to book",
+    "checkIn": "Check-in",
+    "checkOut": "Check-out",
+    "nights_full": "nights",
+    "totalPrice": "Total",
+    "review": {
+      "title": "Leave a review",
+      "placeholder": "Tell us about your experience...",
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "sending": "Sending...",
+      "success": "Review submitted successfully!"
+    }
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "subtitle": "DomRent platform management",
+    "tabs": {
+      "stats": "Statistics",
+      "users": "Users",
+      "moderation": "Moderation",
+      "audit": "Audit Log"
+    },
+    "stats": {
+      "users": "Users",
+      "properties": "Listings",
+      "bookings": "Bookings",
+      "revenue": "Revenue",
+      "banned": "Banned",
+      "pending": "Pending review",
+      "per7d": "in 7 days"
+    },
+    "users": {
+      "search": "Search by email or name...",
+      "find": "Search",
+      "total": "Total",
+      "id": "ID",
+      "user": "User",
+      "role": "Role",
+      "properties": "Properties",
+      "bookings": "Bookings",
+      "date": "Date",
+      "status": "Status",
+      "active": "Active",
+      "banned": "Banned",
+      "ban": "Ban",
+      "unban": "Unban",
+      "banConfirm": "Ban this user?",
+      "unbanConfirm": "Unban this user?",
+      "roles": {
+        "USER": "Tenant",
+        "LANDLORD": "Landlord",
+        "ADMIN": "Administrator"
+      }
+    },
+    "moderation": {
+      "found": "Found",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approveAnyway": "Approve anyway",
+      "removeFromPublication": "Remove from publication",
+      "rejectModal": {
+        "title": "Reject listing",
+        "placeholder": "Enter rejection reason (visible to landlord)...",
+        "submit": "Reject",
+        "cancel": "Cancel"
+      },
+      "statuses": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected"
+      },
+      "empty": "No listings with this status"
+    },
+    "audit": {
+      "title": "Administrator action log",
+      "action": "Action",
+      "admin": "Admin",
+      "target": "Target",
+      "time": "Time",
+      "empty": "Log is empty",
+      "actions": {
+        "BAN_USER": "User banned",
+        "UNBAN_USER": "User unbanned",
+        "APPROVE_PROPERTY": "Listing approved",
+        "REJECT_PROPERTY": "Listing rejected",
+        "CHANGE_ROLE": "Role changed"
+      }
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to your account",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "loading": "Signing in...",
+      "noAccount": "No account?",
+      "registerLink": "Sign up",
+      "heroTitle": "Find your perfect home in Kazakhstan",
+      "heroSub": "Thousands of rental and sale listings in one place."
+    },
+    "register": {
+      "title": "Create account",
+      "subtitle": "Join thousands of users",
+      "name": "Your name",
+      "namePlaceholder": "John Smith",
+      "email": "Email",
+      "password": "Password",
+      "passwordHint": "At least 6 characters",
+      "whoAreYou": "Who are you?",
+      "tenant": "Tenant",
+      "tenantSub": "Looking for a home",
+      "landlord": "Landlord",
+      "landlordSub": "Listing my property",
+      "submit": "Create account",
+      "loading": "Creating...",
+      "haveAccount": "Already have an account?",
+      "loginLink": "Sign in"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Account management",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "avatar": "Profile photo",
+    "changeAvatar": "Change photo",
+    "uploadAvatar": "Upload photo",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Saved!",
+    "memberSince": "Member since"
+  },
+  "property": {
+    "bookNow": "Book now",
+    "perNight": "/ night",
+    "reviews": "reviews",
+    "noReviews": "No reviews yet",
+    "amenities": "Amenities",
+    "rooms": "rooms",
+    "wifi": "Wi-Fi",
+    "parking": "Parking",
+    "pets": "Pets allowed",
+    "location": "Location",
+    "calendar": {
+      "title": "Availability",
+      "blocked": "Unavailable",
+      "available": "Available",
+      "selected": "Selected",
+      "selectCheckIn": "Select check-in date",
+      "selectCheckOut": "Select check-out date"
+    },
+    "moderation": {
+      "pendingTitle": "Listing under review",
+      "pendingMsg": "Your listing is being reviewed by an administrator. It will appear in search once approved.",
+      "rejectedTitle": "Listing rejected",
+      "rejectedReason": "Reason"
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Try again",
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No",
+    "search": "Search",
+    "noData": "No data",
+    "page": "Page",
+    "of": "of",
+    "night": "night",
+    "nights": "nights",
+    "from": "from",
+    "to": "to",
+    "currency": "₸"
+  }
+}

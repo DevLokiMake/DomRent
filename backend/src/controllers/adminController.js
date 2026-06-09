@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { createNotification } from './notificationController.js';
+import { logAdminAction } from '../helpers/auditLog.js';
 
 const prisma = new PrismaClient();
 
@@ -7,10 +8,13 @@ const prisma = new PrismaClient();
 
 /**
  * GET /api/admin/stats
- * Базовая статистика платформы
+ * Расширенная статистика + топ-5 объявлений + динамика по дням
  */
 export const getStats = async (req, res) => {
   try {
+    const since7days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const since30days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
     const [
       totalUsers,
       totalProperties,
@@ -18,6 +22,10 @@ export const getStats = async (req, res) => {
       pendingProperties,
       totalRevenue,
       bannedUsers,
+      newUsers7d,
+      newBookings7d,
+      approvedProperties,
+      completedBookings,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.property.count(),
@@ -25,26 +33,77 @@ export const getStats = async (req, res) => {
       prisma.property.count({ where: { status: 'PENDING' } }),
       prisma.booking.aggregate({ _sum: { totalPrice: true } }),
       prisma.user.count({ where: { isBanned: true } }),
-    ]);
-
-    // Новые за последние 7 дней
-    const since7days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const [newUsers7d, newBookings7d] = await Promise.all([
       prisma.user.count({ where: { createdAt: { gte: since7days } } }),
       prisma.booking.count({ where: { createdAt: { gte: since7days } } }),
+      prisma.property.count({ where: { status: 'APPROVED' } }),
+      prisma.booking.count({ where: { status: 'COMPLETED' } }),
     ]);
+
+    // Топ-5 объявлений по количеству бронирований
+    const top5Properties = await prisma.property.findMany({
+      where: { status: 'APPROVED' },
+      include: {
+        city: { select: { name: true } },
+        owner: { select: { name: true, email: true } },
+        _count: { select: { bookings: true, reviews: true } },
+      },
+      orderBy: { bookings: { _count: 'desc' } },
+      take: 5,
+    });
+
+    // Динамика бронирований за последние 30 дней (по дням)
+    const bookingsRaw = await prisma.booking.findMany({
+      where: { createdAt: { gte: since30days } },
+      select: { createdAt: true, totalPrice: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Группировка по дате
+    const bookingsByDay = {};
+    bookingsRaw.forEach(b => {
+      const day = b.createdAt.toISOString().split('T')[0];
+      if (!bookingsByDay[day]) bookingsByDay[day] = { count: 0, revenue: 0 };
+      bookingsByDay[day].count++;
+      bookingsByDay[day].revenue += b.totalPrice;
+    });
+
+    const bookingsChart = Object.entries(bookingsByDay).map(([date, data]) => ({
+      date,
+      count: data.count,
+      revenue: data.revenue,
+    }));
+
+    // Статистика по ролям
+    const usersByRole = await prisma.user.groupBy({
+      by: ['role'],
+      _count: { id: true },
+    });
 
     res.json({
       stats: {
         totalUsers,
         totalProperties,
+        approvedProperties,
         totalBookings,
+        completedBookings,
         pendingProperties,
         totalRevenue: totalRevenue._sum.totalPrice || 0,
         bannedUsers,
         newUsers7d,
         newBookings7d,
-      }
+      },
+      top5Properties: top5Properties.map(p => ({
+        id: p.id,
+        title: p.title,
+        city: p.city.name,
+        price: p.price,
+        coverImage: p.coverImage,
+        bookingsCount: p._count.bookings,
+        reviewsCount: p._count.reviews,
+        owner: p.owner.name || p.owner.email,
+      })),
+      bookingsChart,
+      usersByRole: usersByRole.map(r => ({ role: r.role, count: r._count.id })),
     });
   } catch (error) {
     console.error('getStats error:', error);
@@ -54,10 +113,6 @@ export const getStats = async (req, res) => {
 
 // ─── Управление пользователями ────────────────────────────────────────────────
 
-/**
- * GET /api/admin/users
- * Список всех пользователей
- */
 export const getUsers = async (req, res) => {
   try {
     const { search, role, banned, page = '1', limit = '20' } = req.query;
@@ -78,7 +133,7 @@ export const getUsers = async (req, res) => {
       prisma.user.findMany({
         where,
         select: {
-          id: true, email: true, name: true, phone: true,
+          id: true, email: true, name: true, phone: true, avatar: true,
           role: true, isBanned: true, createdAt: true,
           _count: { select: { bookings: true, properties: true } }
         },
@@ -96,11 +151,6 @@ export const getUsers = async (req, res) => {
   }
 };
 
-/**
- * PATCH /api/admin/users/:id/ban
- * Заблокировать / разблокировать пользователя
- * Body: { banned: boolean }
- */
 export const toggleUserBan = async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
@@ -111,15 +161,10 @@ export const toggleUserBan = async (req, res) => {
       return res.status(400).json({ error: 'Поле banned должно быть boolean' });
     }
 
-    // Нельзя заблокировать самого себя или другого администратора
     const target = await prisma.user.findUnique({ where: { id: userId } });
     if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
-    if (target.id === req.user.id) {
-      return res.status(400).json({ error: 'Нельзя заблокировать самого себя' });
-    }
-    if (target.role === 'ADMIN') {
-      return res.status(400).json({ error: 'Нельзя заблокировать другого администратора' });
-    }
+    if (target.id === req.user.id) return res.status(400).json({ error: 'Нельзя заблокировать самого себя' });
+    if (target.role === 'ADMIN') return res.status(400).json({ error: 'Нельзя заблокировать другого администратора' });
 
     const user = await prisma.user.update({
       where: { id: userId },
@@ -127,21 +172,22 @@ export const toggleUserBan = async (req, res) => {
       select: { id: true, email: true, name: true, role: true, isBanned: true }
     });
 
-    res.json({
-      message: banned ? 'Пользователь заблокирован' : 'Пользователь разблокирован',
-      user
-    });
+    // Audit log
+    await logAdminAction(
+      req.user.id,
+      banned ? 'BAN_USER' : 'UNBAN_USER',
+      userId,
+      'USER',
+      { email: target.email, name: target.name }
+    );
+
+    res.json({ message: banned ? 'Пользователь заблокирован' : 'Пользователь разблокирован', user });
   } catch (error) {
     console.error('toggleUserBan error:', error);
     res.status(500).json({ error: 'Ошибка при изменении статуса пользователя' });
   }
 };
 
-/**
- * PATCH /api/admin/users/:id/role
- * Изменить роль пользователя
- * Body: { role: 'USER' | 'LANDLORD' | 'ADMIN' }
- */
 export const changeUserRole = async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
@@ -152,10 +198,19 @@ export const changeUserRole = async (req, res) => {
       return res.status(400).json({ error: `Допустимые роли: ${validRoles.join(', ')}` });
     }
 
+    const target = await prisma.user.findUnique({ where: { id: userId } });
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+
     const user = await prisma.user.update({
       where: { id: userId },
       data: { role },
       select: { id: true, email: true, name: true, role: true }
+    });
+
+    await logAdminAction(req.user.id, 'CHANGE_ROLE', userId, 'USER', {
+      oldRole: target.role,
+      newRole: role,
+      email: target.email,
     });
 
     res.json({ message: 'Роль обновлена', user });
@@ -167,13 +222,9 @@ export const changeUserRole = async (req, res) => {
 
 // ─── Модерация объявлений ─────────────────────────────────────────────────────
 
-/**
- * GET /api/admin/properties
- * Все объявления с фильтром по статусу модерации
- */
 export const getPropertiesAdmin = async (req, res) => {
   try {
-    const { status, page = '1', limit = '20' } = req.query;
+    const { status, page = '1', limit = '10' } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = {};
@@ -201,10 +252,6 @@ export const getPropertiesAdmin = async (req, res) => {
   }
 };
 
-/**
- * PATCH /api/admin/properties/:id/approve
- * Одобрить объявление
- */
 export const approveProperty = async (req, res) => {
   try {
     const propertyId = parseInt(req.params.id);
@@ -213,10 +260,9 @@ export const approveProperty = async (req, res) => {
     const property = await prisma.property.update({
       where: { id: propertyId },
       data: { status: 'APPROVED', rejectionReason: null },
-      include: { owner: { select: { id: true, name: true } } }
+      include: { owner: { select: { id: true, name: true, email: true } } }
     });
 
-    // Уведомить арендодателя
     await createNotification(
       property.ownerId,
       'PROPERTY_APPROVED',
@@ -225,6 +271,11 @@ export const approveProperty = async (req, res) => {
       propertyId
     );
 
+    await logAdminAction(req.user.id, 'APPROVE_PROPERTY', propertyId, 'PROPERTY', {
+      title: property.title,
+      ownerEmail: property.owner.email,
+    });
+
     res.json({ message: 'Объявление одобрено', property });
   } catch (error) {
     console.error('approveProperty error:', error);
@@ -232,28 +283,20 @@ export const approveProperty = async (req, res) => {
   }
 };
 
-/**
- * PATCH /api/admin/properties/:id/reject
- * Отклонить объявление с указанием причины
- * Body: { reason: string }
- */
 export const rejectProperty = async (req, res) => {
   try {
     const propertyId = parseInt(req.params.id);
     if (isNaN(propertyId)) return res.status(400).json({ error: 'Некорректный ID' });
 
     const { reason } = req.body;
-    if (!reason?.trim()) {
-      return res.status(400).json({ error: 'Укажите причину отклонения' });
-    }
+    if (!reason?.trim()) return res.status(400).json({ error: 'Укажите причину отклонения' });
 
     const property = await prisma.property.update({
       where: { id: propertyId },
       data: { status: 'REJECTED', rejectionReason: reason.trim() },
-      include: { owner: { select: { id: true, name: true } } }
+      include: { owner: { select: { id: true, name: true, email: true } } }
     });
 
-    // Уведомить арендодателя
     await createNotification(
       property.ownerId,
       'PROPERTY_REJECTED',
@@ -262,9 +305,49 @@ export const rejectProperty = async (req, res) => {
       propertyId
     );
 
+    await logAdminAction(req.user.id, 'REJECT_PROPERTY', propertyId, 'PROPERTY', {
+      title: property.title,
+      reason: reason.trim(),
+      ownerEmail: property.owner.email,
+    });
+
     res.json({ message: 'Объявление отклонено', property });
   } catch (error) {
     console.error('rejectProperty error:', error);
     res.status(500).json({ error: 'Ошибка при отклонении' });
+  }
+};
+
+// ─── Журнал действий ─────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/audit
+ * Журнал всех действий администраторов
+ */
+export const getAuditLog = async (req, res) => {
+  try {
+    const { page = '1', limit = '20', action } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {};
+    if (action) where.action = action;
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        include: {
+          admin: { select: { id: true, name: true, email: true, avatar: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit),
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    res.json({ logs, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (error) {
+    console.error('getAuditLog error:', error);
+    res.status(500).json({ error: 'Ошибка получения журнала' });
   }
 };

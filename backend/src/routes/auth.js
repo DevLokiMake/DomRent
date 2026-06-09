@@ -1,21 +1,15 @@
 import express from 'express';
-import { register, login } from '../controllers/authController.js';
+import { register, login, updateMe, getMe } from '../controllers/authController.js';
 import { validate, registerSchema, loginSchema } from '../middlewares/validate.js';
+import { authenticateToken } from '../middlewares/auth.js';
 
 const router = express.Router();
 
-/**
- * POST /api/auth/register
- * Регистрация нового пользователя
- * Body: { email, password, name?, phone?, role? }
- */
 router.post('/register', validate(registerSchema), register);
-
-/**
- * POST /api/auth/login
- * Вход пользователя
- * Body: { email, password }
- */
 router.post('/login', validate(loginSchema), login);
+
+// Профиль текущего пользователя
+router.get('/me', authenticateToken, getMe);
+router.patch('/me', authenticateToken, updateMe);
 
 export default router;

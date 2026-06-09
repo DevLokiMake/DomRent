@@ -140,9 +140,9 @@ const ChatPage = () => {
   const coverImg = booking?.property?.coverImage || booking?.property?.images?.[0];
 
   return (
-    <div className="h-[calc(100vh-64px)] flex flex-col bg-[#f8fafc]">
+    <div className="h-[calc(100vh-64px)] flex flex-col bg-[#f8fafc] dark:bg-gray-950 transition-colors">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 shadow-nav flex-shrink-0">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-nav flex-shrink-0">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
@@ -207,7 +207,7 @@ const ChatPage = () => {
                         <div className={`px-4 py-2.5 text-sm leading-relaxed ${
                           isMe
                             ? "bg-gray-900 text-white rounded-2xl rounded-br-sm"
-                            : "bg-white text-gray-900 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100"
+                            : "bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl rounded-bl-sm shadow-sm border border-gray-100 dark:border-gray-700"
                         }`}>
                           {msg.text}
                         </div>
@@ -231,7 +231,7 @@ const ChatPage = () => {
       </div>
 
       {/* Input */}
-      <div className="bg-white border-t border-gray-100 flex-shrink-0">
+      <div className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-end gap-2">
             <textarea
@@ -241,7 +241,7 @@ const ChatPage = () => {
               onKeyDown={handleKeyDown}
               placeholder="Напишите сообщение..."
               rows={1}
-              className="flex-1 px-4 py-2.5 bg-gray-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all resize-none leading-relaxed"
+              className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:bg-white dark:focus:bg-gray-700 transition-all resize-none leading-relaxed placeholder:text-gray-400"
               style={{ height: "44px", maxHeight: "120px" }}
             />
             <button

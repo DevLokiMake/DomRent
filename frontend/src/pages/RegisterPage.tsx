@@ -26,7 +26,7 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-6 bg-white">
+    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-6 bg-white dark:bg-gray-950">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex items-center gap-2 mb-8">
@@ -36,8 +36,8 @@ const RegisterPage = () => {
           <span className="text-xl font-bold text-gray-900">DomRent</span>
         </div>
 
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Создать аккаунт</h1>
-        <p className="text-gray-500 mb-8">Присоединяйтесь к тысячам пользователей</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Создать аккаунт</h1>
+        <p className="text-gray-500 dark:text-gray-400 mb-8">Присоединяйтесь к тысячам пользователей</p>
 
         {error && (
           <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-2xl">
@@ -54,7 +54,7 @@ const RegisterPage = () => {
               placeholder="Иван Иванов"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400"
+              className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent transition-all placeholder:text-gray-400"
             />
           </div>
 
@@ -67,7 +67,7 @@ const RegisterPage = () => {
               value={formData.email}
               onChange={e => setFormData({ ...formData, email: e.target.value })}
               required
-              className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400"
+              className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent transition-all placeholder:text-gray-400"
             />
           </div>
 
@@ -82,7 +82,7 @@ const RegisterPage = () => {
                 onChange={e => setFormData({ ...formData, password: e.target.value })}
                 required
                 minLength={6}
-                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400 pr-12"
+                className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-2xl text-sm outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 focus:border-transparent transition-all placeholder:text-gray-400 pr-12"
               />
               <button
                 type="button"

@@ -94,11 +94,11 @@ const FavoritesPage = () => {
   };
 
   // Получить название города
-  const getCityName = (property: Property) => {
-    if (typeof property.city === 'object' && property.city?.name) {
-      return property.city.name;
+  const getCityName = (property: Property): string => {
+    if (typeof property.city === 'object' && property.city !== null && 'name' in property.city) {
+      return (property.city as { name: string }).name;
     }
-    return property.city || 'Город не указан';
+    return (property.city as string) || 'Город не указан';
   };
 
   // Если не авторизован

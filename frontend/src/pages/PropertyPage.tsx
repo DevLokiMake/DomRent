@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { MapPin, Loader, AlertCircle, ArrowLeft, Heart, Star, Wifi, Car, PawPrint, BedDouble, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle } from "lucide-react";
+import { MapPin, Loader, AlertCircle, ArrowLeft, Heart, Star, Wifi, Car, PawPrint, BedDouble, ChevronLeft, ChevronRight, Clock, XCircle } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import type { PropertyWithOwner, Booking } from "../types";

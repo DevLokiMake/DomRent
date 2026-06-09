@@ -46,6 +46,7 @@ model User {
   password   String
   name       String?
   phone      String?
+  avatar     String?    // URL аватара (Cloudinary)
   telegramId String?
   role       Role       @default(USER)
   isBanned   Boolean    @default(false)
@@ -55,6 +56,7 @@ model User {
   reviews       Review[]       @relation("ReviewAuthor")
   sentMessages  Message[]      @relation("MessageSender")
   notifications Notification[]
+  auditLogs     AuditLog[]     @relation("AuditAdmin")
   createdAt     DateTime       @default(now())
 }
 
@@ -176,6 +178,23 @@ model Notification {
   createdAt DateTime         @default(now())
 
   @@index([userId, isRead])
+}
+
+// ─── Журнал действий администраторов ────────────────────────────────────────
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  adminId    Int
+  action     String   // BAN_USER | UNBAN_USER | APPROVE_PROPERTY | REJECT_PROPERTY | CHANGE_ROLE
+  targetId   Int?     // userId или propertyId
+  targetType String?  // "USER" | "PROPERTY"
+  details    Json?    // дополнительный контекст (причина отклонения, новая роль и т.д.)
+  admin      User     @relation("AuditAdmin", fields: [adminId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([createdAt])
+  @@index([action])
 }
 
 enum NotificationType {
