@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { createNotification } from './notificationController.js';
 import { logAdminAction } from '../helpers/auditLog.js';
+import { sendPropertyModerationNotification } from '../services/telegramService.js';
 
 const prisma = new PrismaClient();
 
@@ -276,6 +277,8 @@ export const approveProperty = async (req, res) => {
       ownerEmail: property.owner.email,
     });
 
+    sendPropertyModerationNotification(property.ownerId, { propertyTitle: property.title, approved: true }).catch(() => {});
+
     res.json({ message: 'Объявление одобрено', property });
   } catch (error) {
     console.error('approveProperty error:', error);
@@ -310,6 +313,8 @@ export const rejectProperty = async (req, res) => {
       reason: reason.trim(),
       ownerEmail: property.owner.email,
     });
+
+    sendPropertyModerationNotification(property.ownerId, { propertyTitle: property.title, approved: false, reason: reason.trim() }).catch(() => {});
 
     res.json({ message: 'Объявление отклонено', property });
   } catch (error) {

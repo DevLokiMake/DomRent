@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Camera, Check, Loader, User } from "lucide-react";
+import { Camera, Check, Loader, User, Send } from "lucide-react";
 import axiosInstance from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 
@@ -15,6 +15,22 @@ const ProfilePage = () => {
   const [error, setError] = useState("");
 
   const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const [tgCode, setTgCode] = useState<string | null>(null);
+  const [tgLoading, setTgLoading] = useState(false);
+
+  const handleGenerateTgCode = async () => {
+    setTgLoading(true);
+    setTgCode(null);
+    try {
+      const res = await axiosInstance.get("/telegram/generate-code");
+      setTgCode(res.data.code);
+    } catch {
+      alert("Ошибка генерации кода");
+    } finally {
+      setTgLoading(false);
+    }
+  };
   const [avatarUrl, setAvatarUrl] = useState<string | null>((user as any)?.avatar || null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -115,6 +131,48 @@ const ProfilePage = () => {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Telegram linking */}
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-card border border-gray-100 dark:border-gray-800 mb-5">
+          <div className="flex items-center gap-3 mb-4">
+            <Send className="w-5 h-5 text-[#2AABEE]" />
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Telegram</p>
+          </div>
+
+          {(user as any)?.telegramId ? (
+            <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+              Аккаунт привязан (ID: {(user as any).telegramId})
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Привяжите Telegram для получения уведомлений о бронированиях и статусах объявлений.
+              </p>
+
+              {tgCode ? (
+                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Ваш код привязки:</p>
+                  <p className="text-2xl font-black tracking-[0.2em] text-gray-900 dark:text-white mb-2">
+                    {tgCode}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    Отправьте боту: <span className="font-mono">/link {tgCode}</span>
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Код действителен 10 минут.</p>
+                </div>
+              ) : (
+                <button
+                  onClick={handleGenerateTgCode}
+                  disabled={tgLoading}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[#2AABEE] hover:bg-[#1a9adb] text-white text-sm font-semibold rounded-2xl transition disabled:opacity-50"
+                >
+                  {tgLoading ? <Loader className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Привязать Telegram
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Profile form */}
