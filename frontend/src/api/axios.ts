@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 // Создание экземпляра axios с baseURL
 const axiosInstance = axios.create({
@@ -36,8 +36,8 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Если ошибка 401, удалить токен и перенаправить на страницу входа
-    if (error.response?.status === 401) {
+    // 401 только если токен был — значит он протух, логаутим и редиректим
+    if (error.response?.status === 401 && localStorage.getItem('token')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
